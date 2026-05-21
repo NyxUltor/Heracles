@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Android / Gradle
+.gradle/
+.idea/
+local.properties
+.DS_Store
