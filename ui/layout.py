@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QScrollArea, QFrame, QPushButton, QListWidget, QListWidgetItem, QMessageBox, QTabWidget, QGroupBox, QCheckBox, QComboBox, QSpinBox, QFileDialog, QFormLayout, QSizePolicy, QGraphicsDropShadowEffect
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QScrollArea, QFrame, QPushButton, QListWidget, QListWidgetItem, QMessageBox, QTabWidget, QGroupBox, QCheckBox, QComboBox, QSpinBox, QFileDialog, QFormLayout, QSizePolicy, QGraphicsDropShadowEffect, QMenu
 from PyQt6.QtGui import QColor, QKeySequence, QShortcut, QFont
 from ui.exercise_row import ExerciseRow
 from utils.export import export_session_log, write_autosave
@@ -59,9 +59,29 @@ class App(QWidget):
         title.setObjectName("title")
         main_layout.addWidget(title)
 
-        # Tabs: Logger, Tracker, Settings
+        # Tabs (hidden) and hamburger menu for mobile-friendly navigation
         self.tabs = QTabWidget()
+        # hide the default tab bar; we'll present a hamburger menu instead
+        try:
+            self.tabs.tabBar().hide()
+        except Exception:
+            pass
+
+        header_row = QHBoxLayout()
+        self.hamburger = QPushButton("\u2630")
+        self.hamburger.setFixedSize(36, 36)
+        self.hamburger.setObjectName("hamburgerButton")
+        header_row.addWidget(self.hamburger)
+        header_row.addStretch()
+        main_layout.addLayout(header_row)
         main_layout.addWidget(self.tabs, 1)
+
+        # Build a menu for navigation items
+        self.nav_menu = QMenu()
+        self.nav_menu.addAction("Logger", lambda: self.tabs.setCurrentIndex(0))
+        self.nav_menu.addAction("Tracker", lambda: self.tabs.setCurrentIndex(1))
+        self.nav_menu.addAction("Settings", lambda: self.tabs.setCurrentIndex(2))
+        self.hamburger.clicked.connect(lambda: self.nav_menu.exec_(self.hamburger.mapToGlobal(self.hamburger.rect().bottomLeft())))
 
         # Logger tab container - reuse `self.layout` name for minimal changes
         logger_widget = QWidget()
@@ -902,7 +922,7 @@ class App(QWidget):
             __BACKGROUND_RULE__
             color: #ffffff;
             font-family: Segoe UI;
-            font-size: 14px;
+            font-size: 16px;
         }}
 
         QScrollArea {{
@@ -915,15 +935,15 @@ class App(QWidget):
         }}
 
         QLabel#title {{
-            font-size: 20px;
+            font-size: 24px;
             font-weight: bold;
-            padding-bottom: 10px;
+            padding-bottom: 12px;
         }}
 
         QLabel#sessionTotal {{
             margin-top: 12px;
-            font-size: 19px;
-            font-weight: 800;
+            font-size: 24px;
+            font-weight: 900;
             color: #00ffcc;
         }}
 
@@ -931,7 +951,7 @@ class App(QWidget):
             background-color: #171717;
             border: 1px solid #2a2a2a;
             border-radius: 8px;
-            padding: 6px 8px 4px 8px;
+            padding: 8px 10px 6px 10px;
         }}
 
         QLabel#workoutDurationLabel {{
@@ -942,12 +962,13 @@ class App(QWidget):
         }}
 
         QLineEdit#workoutDurationInput {{
-            min-width: 170px;
+            min-width: 200px;
             background-color: #1e1e1e;
             border: 1px solid #333333;
-            border-radius: 4px;
-            padding: 6px;
+            border-radius: 6px;
+            padding: 10px;
             color: white;
+            height: 42px;
         }}
 
         QLineEdit#workoutDurationInput:focus {{
@@ -976,10 +997,11 @@ class App(QWidget):
         QLineEdit#exerciseInput {{
             background-color: #1e1e1e;
             border: 1px solid #333333;
-            border-radius: 4px;
-            padding: 6px;
+            border-radius: 6px;
+            padding: 10px;
             color: white;
             selection-background-color: #00ffcc;
+            height: 44px;
         }}
 
         QLineEdit#exerciseInput:focus {{
@@ -989,9 +1011,11 @@ class App(QWidget):
         QPushButton#addExerciseButton {{
             background-color: #1b1b1b;
             border: 1px solid #333333;
-            border-radius: 4px;
+            border-radius: 8px;
             color: #00ffcc;
             font-weight: bold;
+            padding: 12px 16px;
+            min-height: 44px;
         }}
 
         QPushButton#addExerciseButton:hover {{
@@ -1007,10 +1031,10 @@ class App(QWidget):
         QPushButton#trackerExportButton {{
             background-color: #1b1b1b;
             border: 1px solid #333333;
-            border-radius: 4px;
+            border-radius: 8px;
             color: #ffffff;
             font-weight: bold;
-            padding: 6px 10px;
+            padding: 10px 14px;
         }}
 
         QPushButton#saveSessionButton:hover,
@@ -1026,8 +1050,8 @@ class App(QWidget):
         QComboBox, QSpinBox, QCheckBox, QLineEdit {{
             background-color: #1e1e1e;
             border: 1px solid #333333;
-            border-radius: 4px;
-            padding: 4px;
+            border-radius: 6px;
+            padding: 8px;
             color: white;
         }}
 
@@ -1040,7 +1064,7 @@ class App(QWidget):
         QListWidget#suggestionsList {{
             background-color: #1e1e1e;
             border: 1px solid #333333;
-            border-radius: 4px;
+            border-radius: 6px;
             color: white;
         }}
 
