@@ -9,6 +9,15 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python main.py
+
+Run the web API (provides mobile frontend and persistence):
+
+```bash
+cd api
+python -m api.app
+```
+
+Then open `http://<desktop-ip>:8000/` from your device browser.
 ```
 
 Notes:
