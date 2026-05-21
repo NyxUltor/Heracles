@@ -1,7 +1,8 @@
 {
-  "saved_at": "2026-05-21T23:47:24",
+  "saved_at": "2026-05-22T03:08:55",
   "volume": 0,
   "units": "kg",
+  "workout_duration": null,
   "exercises": [
     {
       "name": "Push Ups",

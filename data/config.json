@@ -1,0 +1,15 @@
+{
+  "export_dir": "logs",
+  "retention_days": null,
+  "units": "kg",
+  "background_image": "",
+  "restore_mode": "restore",
+  "autosave_enabled": true,
+  "default_exercises": [
+    "Push Ups",
+    "Pull Ups"
+  ],
+  "workout_duration_label": "workout duration(main)",
+  "workout_duration": null,
+  "show_row_totals": true
+}

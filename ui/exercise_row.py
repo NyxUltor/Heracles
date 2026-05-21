@@ -89,27 +89,45 @@ class SetLineEdit(QLineEdit):
         super().keyPressEvent(event)
 
 class ExerciseRow(QWidget):
-    def __init__(self, name):
+    def __init__(self, name, on_delete=None):
         super().__init__()
 
         self.sets = []
         self.next_exercise_row = None  # Set by parent App for Enter navigation
         self.prev_exercise_row = None  # Set by parent App for Up navigation
         self.on_total_changed = None  # Optional callback when any set value changes
+        self.on_delete = on_delete
+        self.setObjectName("exerciseCard")
 
-        self.layout = QHBoxLayout()
+        self.layout = QVBoxLayout()
         self.layout.setSpacing(8)
-        self.layout.setContentsMargins(0, 5, 0, 5)
+        self.layout.setContentsMargins(12, 12, 12, 12)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        # Exercise Name
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(8)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.delete_button = QPushButton("×")
+        self.delete_button.setObjectName("deleteExerciseButton")
+        self.delete_button.setFixedSize(20, 20)
+        self.delete_button.clicked.connect(self.request_delete)
+        self.delete_button.setToolTip("Delete exercise")
+        header_layout.addWidget(self.delete_button, 0, Qt.AlignmentFlag.AlignLeft)
+
         self.name_label = QLabel(name)
         self.name_label.setFixedWidth(140)
         self.name_label.setObjectName("exerciseName")
-        self.layout.addWidget(self.name_label)
+        header_layout.addWidget(self.name_label, 0, Qt.AlignmentFlag.AlignLeft)
+        header_layout.addStretch()
 
         # Sets container
         self.sets_container = QHBoxLayout()
         self.sets_container.setSpacing(11)
+        self.sets_container.setContentsMargins(0, 0, 0, 0)
+        self.sets_container.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        self.layout.addLayout(header_layout)
         self.layout.addLayout(self.sets_container)
 
         # Plus button hidden; + key on keyboard creates new set instead
@@ -121,18 +139,16 @@ class ExerciseRow(QWidget):
         self.add_button.hide()
         self.layout.addWidget(self.add_button)
 
-        # Spacer line (visual balance)
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.VLine)
-        line.setStyleSheet("color: #333;")
-        self.layout.addWidget(line)
-
         # Total label
         self.total_label = QLabel("Total: 0")
         self.total_label.setFixedWidth(120)
         self.total_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.total_label.setObjectName("totalLabel")
-        self.layout.addWidget(self.total_label)
+        footer_layout = QHBoxLayout()
+        footer_layout.setContentsMargins(0, 0, 0, 0)
+        footer_layout.addStretch()
+        footer_layout.addWidget(self.total_label)
+        self.layout.addLayout(footer_layout)
 
         self.setLayout(self.layout)
 
@@ -146,6 +162,10 @@ class ExerciseRow(QWidget):
         first_weight.setCursorPosition(0)  # Position at end of empty field
 
         self.apply_styles()
+
+    def request_delete(self):
+        if self.on_delete:
+            self.on_delete(self)
 
     def add_set(self):
         # Create a container for one set.
@@ -256,6 +276,12 @@ class ExerciseRow(QWidget):
 
     def apply_styles(self):
         self.setStyleSheet("""
+        QWidget#exerciseCard {
+            background-color: #171717;
+            border: 1px solid #2a2a2a;
+            border-radius: 10px;
+        }
+
         QLabel#exerciseName {
             font-weight: bold;
             color: #ffffff;
@@ -277,8 +303,8 @@ class ExerciseRow(QWidget):
         }
 
         QFrame#setFrame {
-            background-color: #171717;
-            border: 1px solid #2a2a2a;
+            background-color: #1d1d1d;
+            border: 1px solid #2f2f2f;
             border-radius: 6px;
         }
 
@@ -308,5 +334,19 @@ class ExerciseRow(QWidget):
 
         QPushButton#addSetButton:focus {
             border: 1px solid #00ffcc;
+        }
+
+        QPushButton#deleteExerciseButton {
+            background-color: transparent;
+            border: 1px solid #444444;
+            border-radius: 10px;
+            color: #ff6b6b;
+            font-weight: bold;
+            padding: 0;
+        }
+
+        QPushButton#deleteExerciseButton:hover {
+            border: 1px solid #ff6b6b;
+            color: #ff8a8a;
         }
         """)

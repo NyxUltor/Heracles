@@ -1,0 +1,13 @@
+{
+  "export_dir": "logs",
+  "retention_days": null,
+  "units": "kg",
+  "background_image": "",
+  "restore_mode": "ask",
+  "autosave_enabled": true,
+  "default_exercises": [
+    "Push Ups",
+    "Pull Ups"
+  ],
+  "show_row_totals": true
+}
