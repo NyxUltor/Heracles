@@ -31,4 +31,5 @@ data class AppSettings(
     val units: String = "kg",
     val defaultExercises: List<String> = listOf("Push Ups", "Pull Ups"),
     val restoreLatestOnOpen: Boolean = true,
+    val useDarkTheme: Boolean = false,
 )

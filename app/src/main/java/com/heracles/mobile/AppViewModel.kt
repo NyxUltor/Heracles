@@ -20,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
+import java.util.Locale
 
 class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     class SetDraft(
@@ -114,7 +115,7 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun addExercise(name: String = "") {
-        exercises.add(ExerciseDraft(name))
+        exercises.add(ExerciseDraft(name.toTitleCaseOrDefault()))
         scheduleAutosave()
     }
 
@@ -234,5 +235,21 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
                 }
             }
         }
+    }
+
+    private fun String.toTitleCaseOrDefault(): String {
+        val normalized = trim()
+        if (normalized.isBlank()) {
+            return "New Exercise"
+        }
+
+        return normalized
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { word ->
+                word.lowercase(Locale.getDefault()).replaceFirstChar { character ->
+                    character.titlecase(Locale.getDefault())
+                }
+            }
     }
 }

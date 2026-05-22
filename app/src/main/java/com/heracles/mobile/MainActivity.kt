@@ -11,8 +11,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            HeraclesTheme {
-                val appViewModel: AppViewModel = viewModel(factory = AppViewModel.factory(applicationContext))
+            val appViewModel: AppViewModel = viewModel(factory = AppViewModel.factory(applicationContext))
+            HeraclesTheme(darkTheme = appViewModel.settings.useDarkTheme) {
                 HeraclesApp(appViewModel)
             }
         }

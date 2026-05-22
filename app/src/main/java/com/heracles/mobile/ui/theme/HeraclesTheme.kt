@@ -1,6 +1,7 @@
 package com.heracles.mobile.ui.theme
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -12,9 +13,15 @@ private val HeraclesColors = lightColorScheme(
 )
 
 @Composable
-fun HeraclesTheme(content: @Composable () -> Unit) {
+fun HeraclesTheme(darkTheme: Boolean, content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = HeraclesColors,
+        colorScheme = if (darkTheme) HeraclesDarkColors else HeraclesColors,
         content = content,
     )
 }
+
+private val HeraclesDarkColors = darkColorScheme(
+    primary = Color(0xFFA8C7FF),
+    secondary = Color(0xFF9BB0FF),
+    tertiary = Color(0xFF4DD8C7),
+)
