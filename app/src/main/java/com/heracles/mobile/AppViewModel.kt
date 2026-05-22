@@ -15,15 +15,20 @@ import com.heracles.mobile.model.WorkoutSet
 import com.heracles.mobile.logic.calculateVolume
 import com.heracles.mobile.storage.SessionRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
 class AppViewModel(private val repository: SessionRepository) : ViewModel() {
-    data class SetDraft(
-        var reps: String by mutableStateOf(reps),
-        var weight: String by mutableStateOf(weight),
-    )
+    class SetDraft(
+        initialReps: String = "",
+        initialWeight: String = "",
+    ) {
+        var reps: String by mutableStateOf(initialReps)
+        var weight: String by mutableStateOf(initialWeight)
+    }
 
     class ExerciseDraft(name: String) {
         val id: String = UUID.randomUUID().toString()
@@ -40,8 +45,13 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     var workoutDuration by mutableStateOf("")
         private set
 
+    var currentSessionId: String? by mutableStateOf(null)
+        private set
+
     val exercises = mutableStateListOf<ExerciseDraft>()
     val sessions = mutableStateListOf<WorkoutSession>()
+
+    private var autosaveJob: Job? = null
 
     init {
         settings = repository.loadSettings()
@@ -70,6 +80,7 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun restoreDefaults() {
+        currentSessionId = null
         exercises.clear()
         settings.defaultExercises.forEach { exercises.add(ExerciseDraft(it)) }
         if (exercises.isEmpty()) {
@@ -77,9 +88,11 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
             exercises.add(ExerciseDraft("Pull Ups"))
         }
         workoutDuration = ""
+        scheduleAutosave()
     }
 
     fun restoreFromSession(session: WorkoutSession) {
+        currentSessionId = session.id
         workoutDuration = session.workoutDuration.orEmpty()
         exercises.clear()
         session.exercises.forEach { exercise ->
@@ -97,22 +110,22 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
         if (exercises.isEmpty()) {
             restoreDefaults()
         }
-        autosave()
+        scheduleAutosave()
     }
 
     fun addExercise(name: String = "") {
         exercises.add(ExerciseDraft(name))
-        autosave()
+        scheduleAutosave()
     }
 
     fun removeExercise(id: String) {
         exercises.removeAll { it.id == id }
-        autosave()
+        scheduleAutosave()
     }
 
     fun addSet(exerciseId: String) {
         exercises.firstOrNull { it.id == exerciseId }?.sets?.add(SetDraft())
-        autosave()
+        scheduleAutosave()
     }
 
     fun removeSet(exerciseId: String, index: Int) {
@@ -121,22 +134,22 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
                 sets.removeAt(index)
             }
         }
-        autosave()
+        scheduleAutosave()
     }
 
     fun updateExerciseName(exerciseId: String, value: String) {
         exercises.firstOrNull { it.id == exerciseId }?.name = value
-        autosave()
+        scheduleAutosave()
     }
 
     fun updateSetReps(exerciseId: String, index: Int, value: String) {
         exercises.firstOrNull { it.id == exerciseId }?.sets?.getOrNull(index)?.reps = value
-        autosave()
+        scheduleAutosave()
     }
 
     fun updateSetWeight(exerciseId: String, index: Int, value: String) {
         exercises.firstOrNull { it.id == exerciseId }?.sets?.getOrNull(index)?.weight = value
-        autosave()
+        scheduleAutosave()
     }
 
     fun sessionVolume(): Double {
@@ -155,12 +168,13 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun saveSession() {
-        val session = toSession()
+        val session = toSession(ensureCurrentSessionId())
         viewModelScope.launch(Dispatchers.IO) {
             repository.saveSession(session)
             repository.saveAutosave(session)
             val updatedSessions = repository.loadSessions()
             withContext(Dispatchers.Main) {
+                currentSessionId = session.id
                 sessions.clear()
                 sessions.addAll(updatedSessions)
             }
@@ -168,13 +182,29 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun autosave() {
-        val session = toSession()
-        viewModelScope.launch(Dispatchers.IO) {
+        scheduleAutosave()
+    }
+
+    private fun scheduleAutosave() {
+        val session = toSession(ensureCurrentSessionId())
+        autosaveJob?.cancel()
+        autosaveJob = viewModelScope.launch(Dispatchers.IO) {
+            delay(400)
             repository.saveAutosave(session)
         }
     }
 
-    private fun toSession(): WorkoutSession {
+    private fun ensureCurrentSessionId(): String {
+        val existingSessionId = currentSessionId
+        if (existingSessionId != null) {
+            return existingSessionId
+        }
+        val generatedSessionId = UUID.randomUUID().toString()
+        currentSessionId = generatedSessionId
+        return generatedSessionId
+    }
+
+    private fun toSession(sessionId: String? = currentSessionId): WorkoutSession {
         val entries = exercises.map { exercise ->
             ExerciseEntry(
                 name = exercise.name.ifBlank { "Exercise" },
@@ -187,6 +217,7 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
             )
         }
         return WorkoutSession(
+            id = sessionId ?: UUID.randomUUID().toString(),
             workoutDuration = workoutDuration.ifBlank { null },
             exercises = entries,
             volume = sessionVolume(),
