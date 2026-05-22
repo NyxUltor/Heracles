@@ -7,18 +7,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.heracles.mobile.model.AppSettings
 import com.heracles.mobile.model.ExerciseEntry
 import com.heracles.mobile.model.WorkoutSession
 import com.heracles.mobile.model.WorkoutSet
 import com.heracles.mobile.logic.calculateVolume
 import com.heracles.mobile.storage.SessionRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     data class SetDraft(
-        var reps: String = "",
-        var weight: String = "",
+        var reps: String by mutableStateOf(reps),
+        var weight: String by mutableStateOf(weight),
     )
 
     class ExerciseDraft(name: String) {
@@ -150,17 +154,24 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
         return calculateVolume(snapshot)
     }
 
-    fun saveSession(): String {
+    fun saveSession() {
         val session = toSession()
-        val file = repository.saveSession(session)
-        repository.saveAutosave(session)
-        sessions.clear()
-        sessions.addAll(repository.loadSessions())
-        return file.name
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveSession(session)
+            repository.saveAutosave(session)
+            val updatedSessions = repository.loadSessions()
+            withContext(Dispatchers.Main) {
+                sessions.clear()
+                sessions.addAll(updatedSessions)
+            }
+        }
     }
 
     fun autosave() {
-        repository.saveAutosave(toSession())
+        val session = toSession()
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveAutosave(session)
+        }
     }
 
     private fun toSession(): WorkoutSession {
