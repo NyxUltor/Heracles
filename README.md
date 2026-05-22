@@ -1,6 +1,8 @@
 Heracles (Android)
 ===================
 
+Current release: v0.2
+
 This repository is an Android-first rewrite of the Heracles workout app. The legacy desktop/web Python prototype has been archived to `legacy_desktop/`.
 
 Quick start (Android Studio)

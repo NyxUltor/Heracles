@@ -5,10 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -112,7 +112,12 @@ private fun LoggerScreen(viewModel: AppViewModel) {
             modifier = Modifier.fillMaxWidth()
         )
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f)) {
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.7f)
+        ) {
             items(viewModel.exercises, key = { it.id }) { exercise ->
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -128,13 +133,13 @@ private fun LoggerScreen(viewModel: AppViewModel) {
                                     value = set.reps,
                                     onValueChange = { viewModel.updateSetReps(exercise.id, index, it) },
                                     label = { Text("Reps") },
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.fillMaxWidth(0.5f)
                                 )
                                 OutlinedTextField(
                                     value = set.weight,
                                     onValueChange = { viewModel.updateSetWeight(exercise.id, index, it) },
                                     label = { Text("Weight") },
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.fillMaxWidth(0.5f)
                                 )
                             }
                         }
