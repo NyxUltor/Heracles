@@ -25,7 +25,7 @@ class WorkoutLogicTest {
 
     @Test
     fun builds_session_filename_with_date_and_volume() {
-        val name = buildSessionFilename(2500.0, LocalDate.of(2026, 5, 22))
-        assertEquals("22-05-2026-2k.json", name)
+        val name = buildSessionFilename(2500.0, 3, LocalDate.of(2026, 5, 22))
+        assertEquals("2026-05-22-3-2k.json", name)
     }
 }

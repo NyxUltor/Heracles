@@ -13,8 +13,8 @@ fun calculateVolume(exercises: List<ExerciseEntry>): Double {
     }
 }
 
-fun buildSessionFilename(volume: Double, date: LocalDate = LocalDate.now()): String {
-    val datePart = date.format(DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.getDefault()))
+fun buildSessionFilename(volume: Double, sessionIndex: Int, date: LocalDate = LocalDate.now()): String {
+    val datePart = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.getDefault()))
     val volumeK = (volume / 1000.0).toInt()
-    return "$datePart-${volumeK}k.json"
+    return "$datePart-$sessionIndex-${volumeK}k.json"
 }

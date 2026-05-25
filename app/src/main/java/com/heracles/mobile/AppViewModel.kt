@@ -9,16 +9,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.heracles.mobile.model.AppSettings
+import com.heracles.mobile.model.BodyweightEntry
 import com.heracles.mobile.model.ExerciseEntry
 import com.heracles.mobile.model.WorkoutSession
 import com.heracles.mobile.model.WorkoutSet
 import com.heracles.mobile.logic.calculateVolume
+import com.heracles.mobile.logic.sanitizeNumericText
 import com.heracles.mobile.storage.SessionRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.LocalDate
+import java.time.Instant
+import java.time.ZoneId
 import java.util.UUID
 import java.util.Locale
 
@@ -46,23 +51,38 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     var workoutDuration by mutableStateOf("")
         private set
 
+    var bodyWeight by mutableStateOf("")
+        private set
+
+    var pendingExerciseName by mutableStateOf("")
+        private set
+
+    var pendingLogStoragePath by mutableStateOf("")
+        private set
+
+    var lastExportMessage by mutableStateOf("")
+        private set
+
+    var trackerBodyWeight by mutableStateOf("")
+        private set
+
+    var scrubberGestureActive by mutableStateOf(false)
+        private set
+
     var currentSessionId: String? by mutableStateOf(null)
         private set
 
     val exercises = mutableStateListOf<ExerciseDraft>()
     val sessions = mutableStateListOf<WorkoutSession>()
+    val bodyweightHistory = mutableStateListOf<BodyweightEntry>()
 
     private var autosaveJob: Job? = null
+    private var startupHydrationStarted = false
 
     init {
         settings = repository.loadSettings()
-        sessions.addAll(repository.loadSessions())
-        val autosave = repository.loadAutosave()
-        if (autosave != null && settings.restoreLatestOnOpen) {
-            restoreFromSession(autosave)
-        } else {
-            restoreDefaults()
-        }
+        pendingLogStoragePath = settings.logStoragePath
+        restoreDefaults(scheduleAutosave = false)
     }
 
     fun switchScreen(name: String) {
@@ -70,33 +90,124 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun updateWorkoutDuration(value: String) {
-        workoutDuration = value
+        workoutDuration = sanitizeNumericText(value)
         autosave()
+    }
+
+    fun updateBodyWeight(value: String) {
+        bodyWeight = sanitizeNumericText(value)
+        autosave()
+    }
+
+    fun updatePendingExerciseName(value: String) {
+        pendingExerciseName = value
+    }
+
+    fun updatePendingLogStoragePath(value: String) {
+        pendingLogStoragePath = value
+    }
+
+    fun exportSessionsTo(destinationPath: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val exported = repository.exportSessionsToDirectory(destinationPath)
+                withContext(Dispatchers.Main) {
+                    lastExportMessage = "Exported $exported session(s) to $destinationPath"
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    lastExportMessage = "Export failed: ${e.message}"
+                }
+            }
+        }
+    }
+
+    fun updateTrackerBodyWeight(value: String) {
+        trackerBodyWeight = sanitizeNumericText(value)
+    }
+
+    fun onScrubberGestureStart() {
+        scrubberGestureActive = true
+    }
+
+    fun onScrubberGestureEnd() {
+        scrubberGestureActive = false
+    }
+
+    fun startStartupHydration() {
+        if (startupHydrationStarted) {
+            return
+        }
+        startupHydrationStarted = true
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val loadedSessions = repository.loadSessions()
+            val loadedBodyweights = repository.loadBodyweightHistory()
+            val autosave = repository.loadAutosave()
+
+            withContext(Dispatchers.Main) {
+                sessions.clear()
+                sessions.addAll(loadedSessions)
+                bodyweightHistory.clear()
+                bodyweightHistory.addAll(loadedBodyweights)
+                trackerBodyWeight = bodyweightHistory.lastOrNull()?.weight?.toString().orEmpty()
+
+                if (autosave != null && settings.restoreLatestOnOpen && currentScreen == "Logger") {
+                    restoreFromSession(autosave)
+                }
+            }
+        }
+    }
+
+    fun addPendingExercise() {
+        addExercise(pendingExerciseName)
+        pendingExerciseName = ""
     }
 
     fun updateSettings(newSettings: AppSettings) {
-        settings = newSettings
-        repository.saveSettings(newSettings)
+        settings = repository.saveSettings(newSettings)
+        pendingLogStoragePath = settings.logStoragePath
         autosave()
     }
 
-    fun restoreDefaults() {
+
+    fun restoreDefaults(scheduleAutosave: Boolean = true) {
         currentSessionId = null
         exercises.clear()
         settings.defaultExercises.forEach { exercises.add(ExerciseDraft(it)) }
-        if (exercises.isEmpty()) {
-            exercises.add(ExerciseDraft("Push Ups"))
-            exercises.add(ExerciseDraft("Pull Ups"))
-        }
         workoutDuration = ""
-        scheduleAutosave()
+        bodyWeight = ""
+        if (scheduleAutosave) {
+            scheduleAutosave()
+        }
+    }
+
+    fun startNewSession() {
+        restoreDefaults()
+        currentScreen = "Logger"
+    }
+
+    fun saveTrackerBodyWeight() {
+        val parsedWeight = trackerBodyWeight.toFlexibleDoubleOrNull() ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val updatedHistory = repository.saveBodyweightEntry(
+                BodyweightEntry(date = LocalDate.now().toString(), weight = parsedWeight)
+            )
+            withContext(Dispatchers.Main) {
+                bodyweightHistory.clear()
+                bodyweightHistory.addAll(updatedHistory)
+                trackerBodyWeight = parsedWeight.toString()
+            }
+        }
     }
 
     fun restoreFromSession(session: WorkoutSession) {
-        currentSessionId = session.id
-        workoutDuration = session.workoutDuration.orEmpty()
+        val normalizedSession = session.normalizedForEditing()
+        currentSessionId = normalizedSession.id
+        bodyWeight = normalizedSession.bodyWeight.orEmpty()
+        workoutDuration = normalizedSession.workoutDuration.orEmpty()
         exercises.clear()
-        session.exercises.forEach { exercise ->
+        normalizedSession.exercises.forEach { exercise ->
             val draft = ExerciseDraft(exercise.name)
             draft.sets.clear()
             if (exercise.sets.isEmpty()) {
@@ -108,9 +219,7 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
             }
             exercises.add(draft)
         }
-        if (exercises.isEmpty()) {
-            restoreDefaults()
-        }
+        currentScreen = "Logger"
         scheduleAutosave()
     }
 
@@ -144,12 +253,12 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun updateSetReps(exerciseId: String, index: Int, value: String) {
-        exercises.firstOrNull { it.id == exerciseId }?.sets?.getOrNull(index)?.reps = value
+        exercises.firstOrNull { it.id == exerciseId }?.sets?.getOrNull(index)?.reps = sanitizeNumericText(value)
         scheduleAutosave()
     }
 
     fun updateSetWeight(exerciseId: String, index: Int, value: String) {
-        exercises.firstOrNull { it.id == exerciseId }?.sets?.getOrNull(index)?.weight = value
+        exercises.firstOrNull { it.id == exerciseId }?.sets?.getOrNull(index)?.weight = sanitizeNumericText(value)
         scheduleAutosave()
     }
 
@@ -173,11 +282,39 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             repository.saveSession(session)
             repository.saveAutosave(session)
+            session.bodyWeight?.toFlexibleDoubleOrNull()?.let { weight ->
+                repository.saveBodyweightEntry(
+                    BodyweightEntry(
+                        date = session.savedAt.toLocalDateString(),
+                        weight = weight,
+                    )
+                )
+            }
             val updatedSessions = repository.loadSessions()
+            val updatedBodyweights = repository.loadBodyweightHistory()
             withContext(Dispatchers.Main) {
                 currentSessionId = session.id
                 sessions.clear()
                 sessions.addAll(updatedSessions)
+                bodyweightHistory.clear()
+                bodyweightHistory.addAll(updatedBodyweights)
+                trackerBodyWeight = bodyweightHistory.lastOrNull()?.weight?.toString().orEmpty()
+            }
+        }
+    }
+
+    fun deleteSession(session: WorkoutSession) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val deleted = repository.deleteSession(session.id)
+            if (deleted) {
+                val updatedSessions = repository.loadSessions()
+                withContext(Dispatchers.Main) {
+                    if (currentSessionId == session.id) {
+                        currentSessionId = null
+                    }
+                    sessions.clear()
+                    sessions.addAll(updatedSessions)
+                }
             }
         }
     }
@@ -219,10 +356,23 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
         }
         return WorkoutSession(
             id = sessionId ?: UUID.randomUUID().toString(),
+            bodyWeight = bodyWeight.toSanitizedNumericString().ifBlank { null },
             workoutDuration = workoutDuration.ifBlank { null },
             exercises = entries,
             volume = sessionVolume(),
         )
+    }
+
+    fun canGoBackToLogger(): Boolean {
+        return currentScreen != "Logger"
+    }
+
+    fun navigateBack(): Boolean {
+        if (currentScreen == "Logger") {
+            return false
+        }
+        currentScreen = "Logger"
+        return true
     }
 
     companion object {
@@ -251,5 +401,37 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
                     character.titlecase(Locale.getDefault())
                 }
             }
+    }
+
+    private fun String.toLocalDateString(): String {
+        return runCatching {
+            Instant.parse(this).atZone(ZoneId.systemDefault()).toLocalDate().toString()
+        }.getOrElse { LocalDate.now().toString() }
+    }
+
+    private fun String.toFlexibleDoubleOrNull(): Double? {
+        val sanitized = toSanitizedNumericString()
+        return sanitized.toDoubleOrNull()
+    }
+
+    private fun String.toSanitizedNumericString(): String {
+        return sanitizeNumericText(this)
+    }
+
+    private fun WorkoutSession.normalizedForEditing(): WorkoutSession {
+        return copy(
+            bodyWeight = bodyWeight?.toSanitizedNumericString()?.ifBlank { null },
+            workoutDuration = workoutDuration?.toSanitizedNumericString()?.ifBlank { null },
+            exercises = exercises.map { exercise ->
+                exercise.copy(
+                    sets = exercise.sets.map { set ->
+                        WorkoutSet(
+                            reps = set.reps.coerceAtLeast(0),
+                            weight = set.weight.coerceAtLeast(0.0),
+                        )
+                    }
+                )
+            }
+        )
     }
 }
