@@ -17,6 +17,18 @@ android {
         versionName = "0.4"
     }
 
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            isDebuggable = false
+        }
+    }
+
     buildFeatures {
         compose = true
     }
