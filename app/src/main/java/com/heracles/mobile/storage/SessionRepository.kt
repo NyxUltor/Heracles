@@ -90,10 +90,11 @@ class SessionRepository(private val rootDir: File) {
     fun deleteSession(sessionId: String): Boolean {
         val files = sessionsDir.listFiles()?.filter { it.extension == "json" } ?: return false
         var deletedAny = false
-        files.forEach { file ->
+        files.sortedByDescending { it.lastModified() }.forEach { file ->
             val session = runCatching { json.decodeFromString(WorkoutSession.serializer(), file.readText()) }.getOrNull()
             if (session != null && session.id == sessionId) {
                 if (file.delete()) deletedAny = true
+                return deletedAny
             }
         }
         return deletedAny

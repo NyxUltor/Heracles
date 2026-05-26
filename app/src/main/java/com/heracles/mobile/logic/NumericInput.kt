@@ -35,6 +35,12 @@ fun scrubNumericText(currentText: String, dragX: Float, sensitivity: Double, dec
     return formatNumericValue(nextValue, decimalPlaces)
 }
 
+fun sanitizeExerciseName(input: String): String {
+    return input
+        .filterNot { it.isISOControl() }
+        .trim()
+}
+
 fun formatNumericValue(value: Double, decimalPlaces: Int): String {
     return if (decimalPlaces <= 0) {
         value.roundToInt().toString()

@@ -7,6 +7,7 @@ import com.heracles.mobile.model.WorkoutSession
 import com.heracles.mobile.storage.SessionRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Files
 
@@ -54,5 +55,21 @@ class AppViewModelTest {
         val viewModel = AppViewModel(repository)
 
         assertEquals(0, viewModel.exercises.size)
+    }
+
+    @Test
+    fun exercise_name_updates_preserve_punctuation() {
+        val rootDir = Files.createTempDirectory("heracles-viewmodel-name-punctuation").toFile()
+        rootDir.deleteOnExit()
+
+        val viewModel = AppViewModel(SessionRepository(rootDir))
+        viewModel.addExercise("Bench._press")
+
+        assertTrue(viewModel.exercises.isNotEmpty())
+        assertEquals("Bench._press", viewModel.exercises.first().name)
+
+        viewModel.updateExerciseName(viewModel.exercises.first().id, "Push._up 2")
+
+        assertEquals("Push._up 2", viewModel.exercises.first().name)
     }
 }

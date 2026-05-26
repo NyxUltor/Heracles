@@ -12,12 +12,12 @@ class NumericInputTest {
 
     @Test
     fun scrubs_integer_values_horizontally() {
-        assertEquals("51", scrubNumericText("50", dragX = 24f, sensitivity = 1.0, decimalPlaces = 0))
-        assertEquals("49", scrubNumericText("50", dragX = -24f, sensitivity = 1.0, decimalPlaces = 0))
+        assertEquals("52", scrubNumericText("50", dragX = 24f, sensitivity = 1.0, decimalPlaces = 0))
+        assertEquals("48", scrubNumericText("50", dragX = -24f, sensitivity = 1.0, decimalPlaces = 0))
     }
 
     @Test
     fun scrubs_decimal_values_with_fractional_step() {
-        assertEquals("57.3", scrubNumericText("57.2", dragX = 24f, sensitivity = 1.0, decimalPlaces = 1))
+        assertEquals("57.4", scrubNumericText("57.2", dragX = 24f, sensitivity = 1.0, decimalPlaces = 1))
     }
 }

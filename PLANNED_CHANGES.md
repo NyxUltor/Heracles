@@ -11,6 +11,7 @@
 - [x] Save logger bodyweight into workout logs and the tracker history file.
 - [ ] Add time-related logging features to the UI roadmap.
 - [ ] Add pre-built routines to the feature roadmap.
+- [ ] Add notes support in the app and track it here.
 - [ ] new UI design
 
 ## Recent updates (v0.5)

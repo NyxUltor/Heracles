@@ -26,12 +26,19 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.heracles.mobile.AppViewModel
 
 @Composable
 fun HeraclesSettingsScreen(viewModel: AppViewModel) {
+    val defaultExercisesTextState = remember {
+        mutableStateOf(viewModel.settings.defaultExercises.joinToString(", "))
+    }
+    val defaultExercisesText = defaultExercisesTextState.value
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -58,10 +65,12 @@ fun HeraclesSettingsScreen(viewModel: AppViewModel) {
                 modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
-                value = viewModel.settings.defaultExercises.joinToString(", "),
-                onValueChange = {
-                    val parsed = it.split(",").map { value -> value.trim() }.filter { value -> value.isNotBlank() }
-                    viewModel.updateSettings(viewModel.settings.copy(defaultExercises = parsed))
+                value = defaultExercisesText,
+                onValueChange = { rawValue ->
+                    defaultExercisesTextState.value = rawValue
+                    viewModel.updateSettings(
+                        viewModel.settings.copy(defaultExercises = parseDefaultExercises(rawValue))
+                    )
                 },
                 label = { Text("Default exercises") },
                 supportingText = { Text("Comma-separated list used for new sessions.") },
@@ -175,6 +184,13 @@ fun HeraclesSettingsScreen(viewModel: AppViewModel) {
             }
         }
     }
+}
+
+private fun parseDefaultExercises(rawValue: String): List<String> {
+    return rawValue
+        .split(',')
+        .map { value -> value.trim() }
+        .filter { value -> value.isNotBlank() }
 }
 
 @Composable

@@ -19,6 +19,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.remember
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.heracles.mobile.AppViewModel
@@ -85,7 +90,11 @@ fun HeraclesLoggerScreen(viewModel: AppViewModel) {
             OutlinedTextField(
                 value = viewModel.pendingExerciseName,
                 onValueChange = { viewModel.updatePendingExerciseName(it) },
-                label = { Text("New Exercise") },
+                placeholder = { Text("New Exercise") },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Text,
+                    capitalization = KeyboardCapitalization.Words,
+                ),
                 singleLine = true,
                 modifier = Modifier.weight(1f)
             )
@@ -108,6 +117,10 @@ fun HeraclesLoggerScreen(viewModel: AppViewModel) {
                             value = exercise.name,
                             onValueChange = { viewModel.updateExerciseName(exercise.id, it) },
                             label = { Text("Exercise name") },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                capitalization = KeyboardCapitalization.Words,
+                            ),
                             modifier = Modifier.fillMaxWidth()
                         )
                         exercise.sets.forEachIndexed { index, set ->
@@ -172,7 +185,9 @@ fun HeraclesLoggerScreen(viewModel: AppViewModel) {
             }
         }
 
-        Text("Session volume: ${String.format(java.util.Locale.US, "%.2f", viewModel.sessionVolume())}")
+        val sessionVolumeState = remember { derivedStateOf { viewModel.sessionVolume() } }
+        val volumeUnit = viewModel.settings.units.ifBlank { "kg" }
+        Text("Session volume: ${String.format(java.util.Locale.US, "%.2f", sessionVolumeState.value)} $volumeUnit")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { viewModel.addExercise() }) { Text("Add exercise") }
             Button(onClick = { viewModel.saveSession() }) { Text("Save workout") }

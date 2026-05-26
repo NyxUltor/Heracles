@@ -29,15 +29,15 @@ class NumericInputEdgeCasesTest {
 
     @Test
     fun scrub_large_positive_and_negative_drag() {
-        // With DEFAULT_SCRUBBER_PIXEL_STEP = 24, a 240px drag is ~10 steps
-        assertEquals("60", scrubNumericText("50", dragX = 240f, sensitivity = 1.0, decimalPlaces = 0))
-        assertEquals("40", scrubNumericText("50", dragX = -240f, sensitivity = 1.0, decimalPlaces = 0))
+        // With DEFAULT_SCRUBBER_PIXEL_STEP = 12, a 240px drag is ~20 steps
+        assertEquals("70", scrubNumericText("50", dragX = 240f, sensitivity = 1.0, decimalPlaces = 0))
+        assertEquals("30", scrubNumericText("50", dragX = -240f, sensitivity = 1.0, decimalPlaces = 0))
     }
 
     @Test
     fun scrub_decimal_step_precision() {
         val result = scrubNumericText("57.2", dragX = 24f, sensitivity = 1.0, decimalPlaces = 1)
-        // one step with decimalPlaces=1 increments by 0.1
-        assertEquals("57.3", result)
+        // two pixel-steps with decimalPlaces=1 increments by 0.2
+        assertEquals("57.4", result)
     }
 }

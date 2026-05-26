@@ -15,6 +15,7 @@ import com.heracles.mobile.model.WorkoutSession
 import com.heracles.mobile.model.WorkoutSet
 import com.heracles.mobile.logic.calculateVolume
 import com.heracles.mobile.logic.sanitizeNumericText
+import com.heracles.mobile.logic.sanitizeExerciseName
 import com.heracles.mobile.storage.SessionRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -61,6 +62,9 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
         private set
 
     var lastExportMessage by mutableStateOf("")
+        private set
+
+    var lastSaveMessage by mutableStateOf("")
         private set
 
     var trackerBodyWeight by mutableStateOf("")
@@ -224,7 +228,7 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun addExercise(name: String = "") {
-        exercises.add(ExerciseDraft(name.toTitleCaseOrDefault()))
+        exercises.add(ExerciseDraft(sanitizeExerciseName(name).toTitleCaseOrDefault()))
         scheduleAutosave()
     }
 
@@ -248,7 +252,7 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun updateExerciseName(exerciseId: String, value: String) {
-        exercises.firstOrNull { it.id == exerciseId }?.name = value
+        exercises.firstOrNull { it.id == exerciseId }?.name = sanitizeExerciseName(value)
         scheduleAutosave()
     }
 
@@ -278,7 +282,7 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun saveSession() {
-        val session = toSession(ensureCurrentSessionId())
+        val session = toSession(UUID.randomUUID().toString())
         viewModelScope.launch(Dispatchers.IO) {
             repository.saveSession(session)
             repository.saveAutosave(session)
@@ -299,8 +303,13 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
                 bodyweightHistory.clear()
                 bodyweightHistory.addAll(updatedBodyweights)
                 trackerBodyWeight = bodyweightHistory.lastOrNull()?.weight?.toString().orEmpty()
+                lastSaveMessage = "Session saved"
             }
         }
+    }
+
+    fun consumeSaveMessage() {
+        lastSaveMessage = ""
     }
 
     fun deleteSession(session: WorkoutSession) {
@@ -324,10 +333,11 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     private fun scheduleAutosave() {
-        val session = toSession(ensureCurrentSessionId())
+        val sessionId = ensureCurrentSessionId()
         autosaveJob?.cancel()
         autosaveJob = viewModelScope.launch(Dispatchers.IO) {
             delay(400)
+            val session = toSession(sessionId)
             repository.saveAutosave(session)
         }
     }
