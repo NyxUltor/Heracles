@@ -1,0 +1,41 @@
+{
+  "id": "stone_temple_sample",
+  "name": "Stone Temple (Sample)",
+  "author": "You",
+  "lightSchemes": [
+    {
+      "id": "temple_granite_light",
+      "name": "Granite",
+      "tokens": {
+        "primary": "#757575",
+        "secondary": "#9E9E9E",
+        "background": "#F5F5F5",
+        "surface": "#EEEEEE",
+        "onPrimary": "#111111",
+        "borderWidth": 2.0,
+        "surfaceRule": "flat"
+      }
+    }
+  ],
+  "darkSchemes": [
+    {
+      "id": "temple_obsidian_dark",
+      "name": "Obsidian",
+      "tokens": {
+        "primary": "#616161",
+        "secondary": "#9E9E9E",
+        "background": "#212121",
+        "surface": "#2C2C2C",
+        "onPrimary": "#E0E0E0",
+        "borderWidth": 2.0,
+        "surfaceRule": "flat"
+      }
+    }
+  ],
+  "style": {
+    "shapeStyle": "RECTANGLE",
+    "buttonHeightDp": 50,
+    "textureRule": "stone",
+    "wallpaperUri": "content://media/external/images/media/12345"
+  }
+}
