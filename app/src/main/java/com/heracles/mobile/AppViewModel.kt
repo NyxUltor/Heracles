@@ -9,11 +9,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.heracles.mobile.model.AppSettings
+import com.heracles.mobile.model.ShapeMode
+import com.heracles.mobile.model.SystemUiMode
+import com.heracles.mobile.model.PrebuiltWorkoutSession
+import com.heracles.mobile.model.ThemeColorScheme
+import com.heracles.mobile.model.ThemeMod
+import com.heracles.mobile.model.ThemeStylePack
+import com.heracles.mobile.model.TokenSet
 import com.heracles.mobile.model.BodyweightEntry
 import com.heracles.mobile.model.ExerciseEntry
 import com.heracles.mobile.model.WorkoutSession
 import com.heracles.mobile.model.WorkoutSet
 import com.heracles.mobile.logic.calculateVolume
+import com.heracles.mobile.logic.parsePrebuiltWorkoutTemplate
 import com.heracles.mobile.logic.sanitizeNumericText
 import com.heracles.mobile.logic.sanitizeExerciseName
 import com.heracles.mobile.storage.SessionRepository
@@ -32,9 +40,13 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     class SetDraft(
         initialReps: String = "",
         initialWeight: String = "",
+        initialCompleted: Boolean = false,
+        val ghostReps: String? = null,
+        val ghostWeight: String? = null,
     ) {
         var reps: String by mutableStateOf(initialReps)
         var weight: String by mutableStateOf(initialWeight)
+        var completed: Boolean by mutableStateOf(initialCompleted)
     }
 
     class ExerciseDraft(name: String) {
@@ -44,6 +56,10 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     var settings by mutableStateOf(AppSettings())
+        private set
+
+    // temporary preview mod id; when non-null it overrides current mod selection for live preview only
+    var previewUiMode by mutableStateOf<String?>(null)
         private set
 
     var currentScreen by mutableStateOf("Logger")
@@ -64,7 +80,16 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     var lastExportMessage by mutableStateOf("")
         private set
 
+    var lastBackupMessage by mutableStateOf("")
+        private set
+
     var lastSaveMessage by mutableStateOf("")
+        private set
+
+    var lastPrebuiltMessage by mutableStateOf("")
+        private set
+
+    var pendingPrebuiltText by mutableStateOf("")
         private set
 
     var trackerBodyWeight by mutableStateOf("")
@@ -73,12 +98,20 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     var scrubberGestureActive by mutableStateOf(false)
         private set
 
+    var editingModId by mutableStateOf<String?>(null)
+        private set
+
     var currentSessionId: String? by mutableStateOf(null)
+        private set
+
+    var currentSessionSavedAt: String? by mutableStateOf(null)
         private set
 
     val exercises = mutableStateListOf<ExerciseDraft>()
     val sessions = mutableStateListOf<WorkoutSession>()
     val bodyweightHistory = mutableStateListOf<BodyweightEntry>()
+    val themeMods = mutableStateListOf<ThemeMod>()
+    val prebuiltSessions = mutableStateListOf<PrebuiltWorkoutSession>()
 
     private var autosaveJob: Job? = null
     private var startupHydrationStarted = false
@@ -86,7 +119,157 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     init {
         settings = repository.loadSettings()
         pendingLogStoragePath = settings.logStoragePath
-        restoreDefaults(scheduleAutosave = false)
+        // load theme mods and initialize defaults
+        viewModelScope.launch(Dispatchers.IO) {
+            val loadedMods = repository.loadThemeMods()
+            val loadedPrebuilt = repository.loadPrebuiltSessions()
+            withContext(Dispatchers.Main) {
+                themeMods.clear()
+                themeMods.addAll(loadedMods.map { it.normalizedThemeModel() })
+                prebuiltSessions.clear()
+                prebuiltSessions.addAll(loadedPrebuilt)
+                if (themeMods.isEmpty()) {
+                    val builtIns = listOf(
+                        ThemeMod(
+                            id = "bare_metal",
+                            name = "Bare Metal",
+                            author = "Heracles",
+                            lightSchemes = listOf(
+                                ThemeColorScheme(
+                                    id = "metal_classic_light",
+                                    name = "Classic Light",
+                                    tokens = TokenSet(
+                                        primary = "#2457C5",
+                                        secondary = "#4D6DB5",
+                                        background = "#FFFBFE",
+                                        surface = "#FFFFFF",
+                                        onPrimary = "#FFFFFF",
+                                        borderWidth = 1.0,
+                                        surfaceRule = "android_default",
+                                    ),
+                                ),
+                                ThemeColorScheme(
+                                    id = "metal_sky_light",
+                                    name = "Sky Light",
+                                    tokens = TokenSet(
+                                        primary = "#00639B",
+                                        secondary = "#3A6584",
+                                        background = "#F7F9FF",
+                                        surface = "#FFFFFF",
+                                        onPrimary = "#FFFFFF",
+                                        borderWidth = 1.0,
+                                        surfaceRule = "android_default",
+                                    ),
+                                ),
+                            ),
+                            darkSchemes = listOf(
+                                ThemeColorScheme(
+                                    id = "metal_classic_dark",
+                                    name = "Classic Dark",
+                                    tokens = TokenSet(
+                                        primary = "#2457C5",
+                                        secondary = "#4D6DB5",
+                                        background = "#1F1F21",
+                                        surface = "#272729",
+                                        onPrimary = "#FFFFFF",
+                                        borderWidth = 1.0,
+                                        surfaceRule = "android_default",
+                                    ),
+                                ),
+                                ThemeColorScheme(
+                                    id = "metal_midnight_dark",
+                                    name = "Midnight",
+                                    tokens = TokenSet(
+                                        primary = "#3C7DFF",
+                                        secondary = "#73A1FF",
+                                        background = "#111318",
+                                        surface = "#1A1D24",
+                                        onPrimary = "#FFFFFF",
+                                        borderWidth = 1.0,
+                                        surfaceRule = "android_default",
+                                    ),
+                                ),
+                            ),
+                            style = ThemeStylePack(
+                                shapeStyle = ShapeMode.DEFAULT,
+                                buttonHeightDp = 48,
+                                textureRule = "android_default",
+                            ),
+                        ),
+                        ThemeMod(
+                            id = "stone_temple",
+                            name = "Stone Temple",
+                            author = "You",
+                            lightSchemes = listOf(
+                                ThemeColorScheme(
+                                    id = "temple_granite_light",
+                                    name = "Granite",
+                                    tokens = TokenSet(
+                                        primary = "#757575",
+                                        secondary = "#9E9E9E",
+                                        background = "#F5F5F5",
+                                        surface = "#EEEEEE",
+                                        onPrimary = "#111111",
+                                        borderWidth = 2.0,
+                                        surfaceRule = "flat",
+                                    ),
+                                ),
+                                ThemeColorScheme(
+                                    id = "temple_sand_light",
+                                    name = "Sand",
+                                    tokens = TokenSet(
+                                        primary = "#8D6E63",
+                                        secondary = "#A1887F",
+                                        background = "#FAF6F1",
+                                        surface = "#F1E9DF",
+                                        onPrimary = "#201814",
+                                        borderWidth = 2.0,
+                                        surfaceRule = "flat",
+                                    ),
+                                ),
+                            ),
+                            darkSchemes = listOf(
+                                ThemeColorScheme(
+                                    id = "temple_obsidian_dark",
+                                    name = "Obsidian",
+                                    tokens = TokenSet(
+                                        primary = "#616161",
+                                        secondary = "#9E9E9E",
+                                        background = "#212121",
+                                        surface = "#2C2C2C",
+                                        onPrimary = "#E0E0E0",
+                                        borderWidth = 2.0,
+                                        surfaceRule = "flat",
+                                    ),
+                                ),
+                                ThemeColorScheme(
+                                    id = "temple_moss_dark",
+                                    name = "Moss",
+                                    tokens = TokenSet(
+                                        primary = "#6B8F71",
+                                        secondary = "#9AB59E",
+                                        background = "#1B201C",
+                                        surface = "#242A25",
+                                        onPrimary = "#E8F2E9",
+                                        borderWidth = 2.0,
+                                        surfaceRule = "flat",
+                                    ),
+                                ),
+                            ),
+                            style = ThemeStylePack(
+                                shapeStyle = ShapeMode.RECTANGLE,
+                                buttonHeightDp = 50,
+                                textureRule = "stone",
+                            ),
+                        ),
+                    )
+                    themeMods.addAll(builtIns)
+                    viewModelScope.launch(Dispatchers.IO) { repository.saveThemeMods(themeMods.toList()) }
+                }
+                settings = repository.saveSettings(normalizeThemeSelection(settings))
+                restoreDefaults(scheduleAutosave = false)
+            }
+        }
     }
 
     fun switchScreen(name: String) {
@@ -111,6 +294,10 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
         pendingLogStoragePath = value
     }
 
+    fun updatePendingPrebuiltText(value: String) {
+        pendingPrebuiltText = value
+    }
+
     fun exportSessionsTo(destinationPath: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -121,6 +308,36 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     lastExportMessage = "Export failed: ${e.message}"
+                }
+            }
+        }
+    }
+
+    fun backupConfig() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val backupFile = repository.exportConfigBackup(settings, themeMods.toList())
+                withContext(Dispatchers.Main) {
+                    lastBackupMessage = "Saved settings backup: ${backupFile.absolutePath}"
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    lastBackupMessage = "Settings backup failed: ${e.message}"
+                }
+            }
+        }
+    }
+
+    fun backupSessions() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val backupFile = repository.exportSessionsBackup(sessions.toList())
+                withContext(Dispatchers.Main) {
+                    lastBackupMessage = "Saved sessions backup: ${backupFile.absolutePath}"
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    lastBackupMessage = "Sessions backup failed: ${e.message}"
                 }
             }
         }
@@ -147,6 +364,7 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val loadedSessions = repository.loadSessions()
             val loadedBodyweights = repository.loadBodyweightHistory()
+            val loadedPrebuilt = repository.loadPrebuiltSessions()
             val autosave = repository.loadAutosave()
 
             withContext(Dispatchers.Main) {
@@ -154,6 +372,8 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
                 sessions.addAll(loadedSessions)
                 bodyweightHistory.clear()
                 bodyweightHistory.addAll(loadedBodyweights)
+                prebuiltSessions.clear()
+                prebuiltSessions.addAll(loadedPrebuilt)
                 trackerBodyWeight = bodyweightHistory.lastOrNull()?.weight?.toString().orEmpty()
 
                 if (autosave != null && settings.restoreLatestOnOpen && currentScreen == "Logger") {
@@ -169,14 +389,42 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun updateSettings(newSettings: AppSettings) {
-        settings = repository.saveSettings(newSettings)
+        settings = repository.saveSettings(normalizeThemeSelection(newSettings))
         pendingLogStoragePath = settings.logStoragePath
         autosave()
+    }
+
+    // preview helpers
+    fun setPreviewMode(mode: String?) {
+        previewUiMode = mode
+    }
+
+    fun clearPreviewMode() {
+        previewUiMode = null
+    }
+
+    fun activeThemeMod(): ThemeMod? {
+        val previewId = previewUiMode
+        if (!previewId.isNullOrBlank()) {
+            return themeMods.firstOrNull { it.id == previewId }
+        }
+        return themeMods.firstOrNull { it.id == settings.currentModId }
+    }
+
+    fun activeLightScheme(mod: ThemeMod? = activeThemeMod()): ThemeColorScheme? {
+        val target = mod ?: return null
+        return target.lightSchemes.firstOrNull { it.id == settings.activeLightSchemeId } ?: target.lightSchemes.firstOrNull()
+    }
+
+    fun activeDarkScheme(mod: ThemeMod? = activeThemeMod()): ThemeColorScheme? {
+        val target = mod ?: return null
+        return target.darkSchemes.firstOrNull { it.id == settings.activeDarkSchemeId } ?: target.darkSchemes.firstOrNull()
     }
 
 
     fun restoreDefaults(scheduleAutosave: Boolean = true) {
         currentSessionId = null
+        currentSessionSavedAt = null
         exercises.clear()
         settings.defaultExercises.forEach { exercises.add(ExerciseDraft(it)) }
         workoutDuration = ""
@@ -189,6 +437,98 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     fun startNewSession() {
         restoreDefaults()
         currentScreen = "Logger"
+    }
+
+    fun startCreatingMod() {
+        editingModId = null
+        currentScreen = "ThemeEditor"
+    }
+
+    fun startEditingMod(modId: String) {
+        editingModId = modId
+        currentScreen = "ThemeEditor"
+    }
+
+    fun finishEditingMod() {
+        editingModId = null
+    }
+
+    fun addMod(mod: ThemeMod) {
+        val normalizedMod = mod.normalizedThemeModel()
+        themeMods.add(normalizedMod)
+        updateSettings(
+            settings.copy(
+                currentModId = normalizedMod.id,
+                activeLightSchemeId = normalizedMod.lightSchemes.first().id,
+                activeDarkSchemeId = normalizedMod.darkSchemes.first().id,
+            )
+        )
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveThemeMods(themeMods.toList())
+        }
+    }
+
+    fun updateMod(mod: ThemeMod) {
+        val normalizedMod = mod.normalizedThemeModel()
+        val idx = themeMods.indexOfFirst { it.id == mod.id }
+        if (idx >= 0) {
+            themeMods[idx] = normalizedMod
+            if (settings.currentModId == normalizedMod.id) {
+                settings = repository.saveSettings(normalizeThemeSelection(settings))
+            }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveThemeMods(themeMods.toList())
+        }
+    }
+
+    fun deleteMod(modId: String) {
+        themeMods.removeAll { it.id == modId && it.id != "bare_metal" && it.id != "stone_temple" }
+        if (settings.currentModId == modId) {
+            updateSettings(settings.copy(currentModId = themeMods.firstOrNull()?.id ?: "bare_metal"))
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveThemeMods(themeMods.toList())
+        }
+    }
+
+    fun selectMod(modId: String) {
+        updateSettings(settings.copy(currentModId = modId))
+    }
+
+    fun selectLightScheme(schemeId: String) {
+        updateSettings(settings.copy(activeLightSchemeId = schemeId))
+    }
+
+    fun selectDarkScheme(schemeId: String) {
+        updateSettings(settings.copy(activeDarkSchemeId = schemeId))
+    }
+
+    fun currentEditingMod(): ThemeMod? {
+        return themeMods.firstOrNull { it.id == editingModId }
+    }
+
+    fun renameMod(modId: String, newName: String) {
+        val target = themeMods.firstOrNull { it.id == modId } ?: return
+        updateMod(target.copy(name = newName.ifBlank { target.name }))
+    }
+
+    fun setSystemUiMode(mode: SystemUiMode) {
+        updateSettings(settings.copy(systemUiMode = mode, useDarkTheme = mode == SystemUiMode.DARK))
+    }
+
+    fun completeQuickSetup(mode: SystemUiMode, modId: String) {
+        val targetMod = themeMods.firstOrNull { it.id == modId }
+        updateSettings(
+            settings.copy(
+                systemUiMode = mode,
+                currentModId = modId,
+                activeLightSchemeId = targetMod?.lightSchemes?.firstOrNull()?.id ?: settings.activeLightSchemeId,
+                activeDarkSchemeId = targetMod?.darkSchemes?.firstOrNull()?.id ?: settings.activeDarkSchemeId,
+                quickSetupCompleted = true,
+                useDarkTheme = mode == SystemUiMode.DARK,
+            )
+        )
     }
 
     fun saveTrackerBodyWeight() {
@@ -208,6 +548,7 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     fun restoreFromSession(session: WorkoutSession) {
         val normalizedSession = session.normalizedForEditing()
         currentSessionId = normalizedSession.id
+        currentSessionSavedAt = normalizedSession.savedAt
         bodyWeight = normalizedSession.bodyWeight.orEmpty()
         workoutDuration = normalizedSession.workoutDuration.orEmpty()
         exercises.clear()
@@ -218,7 +559,29 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
                 draft.sets.add(SetDraft())
             } else {
                 exercise.sets.forEach { set ->
-                    draft.sets.add(SetDraft(set.reps.toString(), set.weight.toString()))
+                    draft.sets.add(SetDraft(set.reps.toString(), set.weight.toString(), set.completed))
+                }
+            }
+            exercises.add(draft)
+        }
+        currentScreen = "Logger"
+        scheduleAutosave()
+    }
+
+    fun restoreFromPrebuiltSession(session: PrebuiltWorkoutSession) {
+        currentSessionId = null
+        currentSessionSavedAt = null
+        bodyWeight = session.bodyWeight.orEmpty()
+        workoutDuration = session.workoutDuration.orEmpty()
+        exercises.clear()
+        session.exercises.forEach { exercise ->
+            val draft = ExerciseDraft(exercise.name)
+            draft.sets.clear()
+            if (exercise.sets.isEmpty()) {
+                draft.sets.add(SetDraft())
+            } else {
+                exercise.sets.forEach { set ->
+                    draft.sets.add(SetDraft(ghostReps = set.reps, ghostWeight = set.weight))
                 }
             }
             exercises.add(draft)
@@ -266,14 +629,22 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
         scheduleAutosave()
     }
 
+    fun toggleSetCompletion(exerciseId: String, index: Int) {
+        exercises.firstOrNull { it.id == exerciseId }?.sets?.getOrNull(index)?.let { set ->
+            set.completed = !set.completed
+        }
+        scheduleAutosave()
+    }
+
     fun sessionVolume(): Double {
         val snapshot = exercises.map { exercise ->
             ExerciseEntry(
                 name = exercise.name,
                 sets = exercise.sets.map { set ->
                     WorkoutSet(
-                        reps = set.reps.toIntOrNull() ?: 0,
-                        weight = set.weight.toDoubleOrNull() ?: 0.0,
+                        reps = resolveSetReps(set),
+                        weight = resolveSetWeight(set),
+                        completed = set.completed,
                     )
                 }
             )
@@ -298,12 +669,55 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
             val updatedBodyweights = repository.loadBodyweightHistory()
             withContext(Dispatchers.Main) {
                 currentSessionId = session.id
+                currentSessionSavedAt = session.savedAt
                 sessions.clear()
                 sessions.addAll(updatedSessions)
                 bodyweightHistory.clear()
                 bodyweightHistory.addAll(updatedBodyweights)
                 trackerBodyWeight = bodyweightHistory.lastOrNull()?.weight?.toString().orEmpty()
                 lastSaveMessage = "Session saved"
+            }
+        }
+    }
+
+    fun importPrebuiltSessionText() {
+        val parsed = parsePrebuiltWorkoutTemplate(pendingPrebuiltText)
+        val session = parsed.session
+        if (session == null) {
+            lastPrebuiltMessage = parsed.error ?: "Unable to import pre-built session"
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.savePrebuiltSession(session)
+            val updated = repository.loadPrebuiltSessions()
+            withContext(Dispatchers.Main) {
+                prebuiltSessions.clear()
+                prebuiltSessions.addAll(updated)
+                pendingPrebuiltText = ""
+                lastPrebuiltMessage = "Imported pre-built session"
+            }
+        }
+    }
+
+    fun consumePrebuiltMessage() {
+        lastPrebuiltMessage = ""
+    }
+
+    fun loadPrebuiltSession(session: PrebuiltWorkoutSession) {
+        restoreFromPrebuiltSession(session)
+    }
+
+    fun deletePrebuiltSession(session: PrebuiltWorkoutSession) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val deleted = repository.deletePrebuiltSession(session.id)
+            if (deleted) {
+                val updated = repository.loadPrebuiltSessions()
+                withContext(Dispatchers.Main) {
+                    prebuiltSessions.clear()
+                    prebuiltSessions.addAll(updated)
+                    lastPrebuiltMessage = "Deleted pre-built session"
+                }
             }
         }
     }
@@ -358,8 +772,9 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
                 name = exercise.name.ifBlank { "Exercise" },
                 sets = exercise.sets.map { set ->
                     WorkoutSet(
-                        reps = set.reps.toIntOrNull() ?: 0,
-                        weight = set.weight.toDoubleOrNull() ?: 0.0,
+                        reps = resolveSetReps(set),
+                        weight = resolveSetWeight(set),
+                        completed = set.completed,
                     )
                 }
             )
@@ -442,6 +857,72 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
                     }
                 )
             }
+        )
+    }
+
+    private fun resolveSetReps(set: SetDraft): Int {
+        return (set.reps.ifBlank { set.ghostReps.orEmpty() }).toIntOrNull() ?: 0
+    }
+
+    private fun resolveSetWeight(set: SetDraft): Double {
+        return (set.weight.ifBlank { set.ghostWeight.orEmpty() }).toDoubleOrNull() ?: 0.0
+    }
+
+    private fun normalizeThemeSelection(source: AppSettings): AppSettings {
+        val fallbackMod = themeMods.firstOrNull()?.id ?: "bare_metal"
+        val selectedMod = themeMods.firstOrNull { it.id == source.currentModId } ?: themeMods.firstOrNull()
+
+        val validLightScheme = selectedMod?.lightSchemes?.firstOrNull { it.id == source.activeLightSchemeId }
+            ?: selectedMod?.lightSchemes?.firstOrNull()
+        val validDarkScheme = selectedMod?.darkSchemes?.firstOrNull { it.id == source.activeDarkSchemeId }
+            ?: selectedMod?.darkSchemes?.firstOrNull()
+
+        return source.copy(
+            currentModId = selectedMod?.id ?: fallbackMod,
+            activeLightSchemeId = validLightScheme?.id ?: "default_light",
+            activeDarkSchemeId = validDarkScheme?.id ?: "default_dark",
+        )
+    }
+
+    private fun ThemeMod.normalizedThemeModel(): ThemeMod {
+        val normalizedLight = if (lightSchemes.isNotEmpty()) {
+            lightSchemes
+        } else {
+            listOf(
+                ThemeColorScheme(
+                    id = "default_light",
+                    name = "Default Light",
+                    tokens = legacyLightTokens ?: TokenSet(background = "#FFFBFE", surface = "#FFFFFF"),
+                )
+            )
+        }
+
+        val normalizedDark = if (darkSchemes.isNotEmpty()) {
+            darkSchemes
+        } else {
+            listOf(
+                ThemeColorScheme(
+                    id = "default_dark",
+                    name = "Default Dark",
+                    tokens = legacyDarkTokens ?: TokenSet(),
+                )
+            )
+        }
+
+        val normalizedStyle = style.copy(
+            shapeStyle = legacyShapeStyle ?: style.shapeStyle,
+            textureRule = if (style.textureRule == "default") {
+                legacyLightTokens?.surfaceRule ?: legacyDarkTokens?.surfaceRule ?: "default"
+            } else {
+                style.textureRule
+            },
+            wallpaperUri = style.wallpaperUri ?: legacyWallpaperUri,
+        )
+
+        return copy(
+            lightSchemes = normalizedLight,
+            darkSchemes = normalizedDark,
+            style = normalizedStyle,
         )
     }
 }

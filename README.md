@@ -1,46 +1,69 @@
-# Heracles 🏋️‍♂️
+# Heracles
 
-A lightweight, high-performance, local-first workout logger built natively for Android using Kotlin and Jetpack Compose. 
+Heracles is a lightweight, local-first workout logger for Android built with Kotlin and Jetpack Compose.
 
-No tracking, no accounts, no bloated subscription models—just straight training data serialization.
+It keeps workout data on-device, uses local JSON storage, and avoids accounts, tracking, and subscriptions.
 
-> **Note:** This project is the mobile companion to the desktop ecosystem version (*Hercules*).
+It is the mobile companion to the desktop ecosystem project, Hercules.
 
----
+## App Summary
 
-## 📸 Glimpse into the UI
+- Fast workout logging for exercises, sets, reps, weights, bodyweight, and duration
+- Local session save, restore, export, and autosave behavior
+- Custom theme modpacks with light/dark scheme support and style controls
+- Pre-built session import flow with inbox-style review before loading into Logger
+- Tracker screen for bodyweight and volume trends
+- Offline-first storage with atomic JSON writes
 
-| Logger Interface | Active Tracking View |
-|---|---|
-| <img src="screenshots/logger.png" width="300" alt="Heracles Logger Screen"/> | <img src="screenshots/session.png" width="300" alt="Heracles Active Session"/> |
+## Screenshots
 
-*Custom theme engine currently in development to support system-wide dynamic Material You palettes alongside custom user presets.*
+The next time the app is run on the connected phone or tablet, real device screenshots should be captured into the [screenshots](screenshots) folder and linked here.
 
----
+Planned captures:
 
-## ⚡ Features
+- [Logger screen](screenshots/logger-screen.png)
+- [Active session screen](screenshots/active-session.png)
+- [Theme editor](screenshots/theme-editor.png)
+- [Theme presets](screenshots/theme-presets.png)
 
-- **Local-First Architecture:** Rapid atomic JSON file writes keep your workout logs stored securely on your own device (`~/.heracles/bodyweight/`).
-- **Zero Friction Logging:** Fast input switching for Exercises, Sets, Reps, and Weights.
-- **Built-in Session Tracker:** Features a precision scrubber tool for a sleek visual representation of training history and aggregate session volume calculations.
-- **Background Autoclose Safety:** Multi-threaded architecture leverages a dedicated background coroutine context (`Dispatchers.IO`) to handle seamless autosaves without locking up the UI thread.
-- **Highly Optimized Execution:** Stripped of heavy framework overhead to ensure immediate cold-starts and smooth scrolling even on legacy, low-spec hardware.
+## Features
 
----
+- Offline-first logging with session restore and autosave
+- Theme modpacks with built-in presets and user-defined packs
+- Pre-built routine import with ghost values in Logger
+- Session tracker with radar and history views
+- Local backup/export support for settings and sessions
 
-## 📦 Installation & Updates
+## In Progress
 
-Because this app bypasses the bureaucracy of the Google Play Store, updates are distributed directly through GitHub Releases. Overwriting an older installation with a newer APK version safely retains your local database logs.
+- Richer pre-built text parsing and friendlier import formatting
+- Time-related logging UI
+- Notes support inside sessions
+- New UI design polish
+- Expanded roadmap cleanup
 
-1. Go to the [Releases](https://github.com/NyxUltor/Heracles/releases) tab.
-2. Download the latest compiled `release.apk`.
-3. Open the file on your Android device and enable "Install from Unknown Sources" if prompted.
+## Installation
 
----
+Updates are distributed through GitHub Releases.
 
-## 🛠️ Tech Stack
+1. Open the latest release on GitHub.
+2. Download the release APK.
+3. Install it on your Android device.
+4. Enable unknown-source installs if Android prompts for it.
 
-- **Language:** Kotlin
-- **UI Framework:** Jetpack Compose (Material 3)
-- **Asynchrony:** Kotlin Coroutines & StateFlow
-- **Data Persistence:** Local Serialization (Encrypted GPG Symmetric file options planned)
+## Tech Stack
+
+- Kotlin
+- Jetpack Compose Material 3
+- Kotlin Coroutines and StateFlow
+- Local JSON serialization
+
+## Notes
+
+- Data is stored locally on the device.
+- The app is designed for fast on-device iteration and offline use.
+- Some roadmap items are intentionally still rough and tracked in [PLANNED_CHANGES.md](PLANNED_CHANGES.md).
+
+## Legacy Notes
+
+Earlier versions of this README used a more marketing-style feature list and installation blurb. The current version keeps the same project intent but reflects the newer theme modpack, pre-built session, and logger work that is now in the codebase.

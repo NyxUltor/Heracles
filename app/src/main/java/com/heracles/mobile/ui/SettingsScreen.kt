@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -31,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.heracles.mobile.AppViewModel
+import com.heracles.mobile.model.SystemUiMode
+import com.heracles.mobile.model.UiFidelityLevel
 
 @Composable
 fun HeraclesSettingsScreen(viewModel: AppViewModel) {
@@ -94,8 +97,10 @@ fun HeraclesSettingsScreen(viewModel: AppViewModel) {
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { viewModel.exportSessionsTo("/sdcard/HeraclesSessions") }) { Text("Export sessions") }
-                Text(viewModel.lastExportMessage)
+                Button(onClick = { viewModel.backupSessions() }) { Text("Backup sessions") }
             }
+            Text(viewModel.lastExportMessage)
+            Text(viewModel.lastBackupMessage)
         }
 
         SettingsSection(title = "Training", icon = Icons.Default.Tune) {
@@ -156,20 +161,78 @@ fun HeraclesSettingsScreen(viewModel: AppViewModel) {
         SettingsSection(title = "Appearance", icon = Icons.Default.Palette) {
             CustomAppIconCard()
             HorizontalDivider()
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Dark mode", style = MaterialTheme.typography.titleMedium)
-                    Text("Switch between light and dark themes.", style = MaterialTheme.typography.bodyMedium)
-                }
-                Switch(
-                    checked = viewModel.settings.useDarkTheme,
-                    onCheckedChange = { enabled ->
-                        viewModel.updateSettings(viewModel.settings.copy(useDarkTheme = enabled))
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Theme", style = MaterialTheme.typography.titleMedium)
+                        Text("Switch between light and dark themes.", style = MaterialTheme.typography.bodyMedium)
                     }
-                )
+                    SunMoonThemeToggle(
+                        checked = viewModel.settings.systemUiMode == SystemUiMode.DARK,
+                        onCheckedChange = { enabled ->
+                            viewModel.setSystemUiMode(if (enabled) SystemUiMode.DARK else SystemUiMode.LIGHT)
+                        }
+                    )
+                }
+                Button(
+                    onClick = { viewModel.switchScreen("Theme") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Custom theme")
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Visual fidelity", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Lower tiers trade visual polish for speed on older tablets.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        FidelityChip(
+                            label = "Minimal",
+                            selected = viewModel.settings.uiFidelity == UiFidelityLevel.MINIMAL,
+                            onClick = { viewModel.updateSettings(viewModel.settings.copy(uiFidelity = UiFidelityLevel.MINIMAL)) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        FidelityChip(
+                            label = "Balanced",
+                            selected = viewModel.settings.uiFidelity == UiFidelityLevel.BALANCED,
+                            onClick = { viewModel.updateSettings(viewModel.settings.copy(uiFidelity = UiFidelityLevel.BALANCED)) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        FidelityChip(
+                            label = "Rich",
+                            selected = viewModel.settings.uiFidelity == UiFidelityLevel.RICH,
+                            onClick = { viewModel.updateSettings(viewModel.settings.copy(uiFidelity = UiFidelityLevel.RICH)) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("UI Mode", style = MaterialTheme.typography.titleMedium)
+                    Text("Select how app light/dark is resolved.", style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        val current = viewModel.settings.systemUiMode
+                        OutlinedButton(onClick = { viewModel.setSystemUiMode(SystemUiMode.LIGHT) }, shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)) {
+                            Text(if (current == SystemUiMode.LIGHT) "Light ✓" else "Light")
+                        }
+                        OutlinedButton(onClick = { viewModel.setSystemUiMode(SystemUiMode.DARK) }, shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)) {
+                            Text(if (current == SystemUiMode.DARK) "Dark ✓" else "Dark")
+                        }
+                        OutlinedButton(onClick = { viewModel.setSystemUiMode(SystemUiMode.AUTO) }, shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)) {
+                            Text(if (current == SystemUiMode.AUTO) "Auto ✓" else "Auto")
+                        }
+                    }
+                }
+                Button(
+                    onClick = { viewModel.backupConfig() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Backup settings")
+                }
+                Text(viewModel.lastBackupMessage)
             }
         }
 
@@ -215,6 +278,24 @@ private fun ModeRow(label: String, checked: Boolean, onToggle: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Checkbox(checked = checked, onCheckedChange = { onToggle() })
         Text(label)
+    }
+}
+
+@Composable
+private fun FidelityChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (selected) {
+        Button(onClick = onClick, modifier = modifier) {
+            Text("$label ✓")
+        }
+    } else {
+        OutlinedButton(onClick = onClick, modifier = modifier) {
+            Text(label)
+        }
     }
 }
 

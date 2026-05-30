@@ -222,3 +222,6 @@ __marimo__/
 .idea/
 local.properties
 .DS_Store
+# Keystore (do not commit)
+keystore/
+*.jks

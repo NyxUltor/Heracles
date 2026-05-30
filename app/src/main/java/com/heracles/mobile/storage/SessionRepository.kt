@@ -1,8 +1,12 @@
 package com.heracles.mobile.storage
 
 import android.content.Context
+import com.heracles.mobile.model.AppConfigBackup
 import com.heracles.mobile.model.AppSettings
 import com.heracles.mobile.model.BodyweightEntry
+import com.heracles.mobile.model.PrebuiltWorkoutSession
+import com.heracles.mobile.model.SessionBackup
+import com.heracles.mobile.model.ThemeMod
 import com.heracles.mobile.model.WorkoutSession
 import com.heracles.mobile.logic.buildSessionFilename
 import kotlinx.serialization.builtins.ListSerializer
@@ -20,6 +24,9 @@ class SessionRepository(private val rootDir: File) {
     private val autosaveFile: File = File(rootDir, "autosave.json")
     private val settingsFile: File = File(rootDir, "settings.json")
     private val bodyweightFile: File = File(rootDir, "bodyweight-history.json")
+    private val modsFile: File = File(rootDir, "theme-mods.json")
+    private val prebuiltDir: File = File(rootDir, "prebuilt-sessions")
+    private val backupDir: File = File(rootDir, "backups")
 
     fun loadSettings(): AppSettings {
         val normalizedSettings = if (!settingsFile.exists()) {
@@ -54,6 +61,63 @@ class SessionRepository(private val rootDir: File) {
         return runCatching {
             if (!bodyweightFile.exists()) emptyList() else json.decodeFromString(ListSerializer(BodyweightEntry.serializer()), bodyweightFile.readText())
         }.getOrDefault(emptyList())
+    }
+
+    fun loadThemeMods(): List<ThemeMod> {
+        return runCatching {
+            if (!modsFile.exists()) emptyList() else json.decodeFromString(ListSerializer(ThemeMod.serializer()), modsFile.readText())
+        }.getOrDefault(emptyList())
+    }
+
+    fun saveThemeMods(mods: List<ThemeMod>) {
+        writeTextAtomically(modsFile, json.encodeToString(ListSerializer(ThemeMod.serializer()), mods))
+    }
+
+    fun loadPrebuiltSessions(): List<PrebuiltWorkoutSession> {
+        return runCatching {
+            prebuiltDir.listFiles()
+                ?.filter { it.extension == "json" }
+                ?.sortedByDescending { it.lastModified() }
+                ?.mapNotNull { file ->
+                    runCatching { json.decodeFromString(PrebuiltWorkoutSession.serializer(), file.readText()) }.getOrNull()
+                }
+                ?: emptyList()
+        }.getOrDefault(emptyList())
+    }
+
+    fun savePrebuiltSession(session: PrebuiltWorkoutSession): File {
+        prebuiltDir.mkdirs()
+        val file = File(prebuiltDir, "${session.id}.json")
+        writeTextAtomically(file, json.encodeToString(session))
+        return file
+    }
+
+    fun deletePrebuiltSession(sessionId: String): Boolean {
+        val files = prebuiltDir.listFiles()?.filter { it.extension == "json" } ?: return false
+        var deletedAny = false
+        files.forEach { file ->
+            val session = runCatching { json.decodeFromString(PrebuiltWorkoutSession.serializer(), file.readText()) }.getOrNull()
+            if (session != null && session.id == sessionId) {
+                if (file.delete()) deletedAny = true
+            }
+        }
+        return deletedAny
+    }
+
+    fun exportConfigBackup(settings: AppSettings, themeMods: List<ThemeMod>): File {
+        backupDir.mkdirs()
+        val backupFile = File(backupDir, "config-backup.json")
+        val payload = AppConfigBackup(settings = settings, themeMods = themeMods)
+        writeTextAtomically(backupFile, json.encodeToString(payload))
+        return backupFile
+    }
+
+    fun exportSessionsBackup(sessions: List<WorkoutSession>): File {
+        backupDir.mkdirs()
+        val backupFile = File(backupDir, "sessions-backup.json")
+        val payload = SessionBackup(sessions = sessions)
+        writeTextAtomically(backupFile, json.encodeToString(payload))
+        return backupFile
     }
 
     fun saveBodyweightEntry(entry: BodyweightEntry): List<BodyweightEntry> {
@@ -161,6 +225,9 @@ class SessionRepository(private val rootDir: File) {
             logStoragePath = resolveStorageDir(settings.logStoragePath).absolutePath,
             numericInputModes = settings.numericInputModes.ifEmpty { setOf("keyboard") },
             scrubberSensitivity = settings.scrubberSensitivity.coerceIn(0.05, 10.0),
+            uiFidelity = settings.uiFidelity,
+            activeLightSchemeId = settings.activeLightSchemeId.ifBlank { "default_light" },
+            activeDarkSchemeId = settings.activeDarkSchemeId.ifBlank { "default_dark" },
         )
     }
 

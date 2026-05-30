@@ -1,5 +1,7 @@
 # Heracles Planned Changes
 
+## Core Roadmap
+
 - [x] Change log storage to use an absolute path setting instead of a relative one.
 - [x] Keep existing log files when the storage location changes by moving them to the new directory.
 - [x] Open a loaded session directly in Logger when the user taps Load from Sessions.
@@ -9,10 +11,14 @@
 - [x] Remove app icon customization option from Settings.
 - [x] Add Tracker screen with radar graph, volume/bodyweight line chart, and saved bodyweight history.
 - [x] Save logger bodyweight into workout logs and the tracker history file.
+
+## In Progress
+
 - [ ] Add time-related logging features to the UI roadmap.
 - [ ] Add pre-built routines to the feature roadmap.
 - [ ] Add notes support in the app and track it here.
-- [ ] new UI design
+- [ ] New UI design polish.
+- [ ] Richer pre-built text format and import UX.
 
 ## Recent updates (v0.5)
 

@@ -13,8 +13,17 @@ android {
         applicationId = "com.heracles.mobile"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.5"
+        versionCode = 11
+        versionName = "0.11"
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("keystore/release-keystore.jks")
+            storePassword = (project.findProperty("KEYSTORE_PASSWORD") as String?)
+            keyAlias = (project.findProperty("KEY_ALIAS") as String?) ?: "release"
+            keyPassword = (project.findProperty("KEY_PASSWORD") as String?) ?: (project.findProperty("KEYSTORE_PASSWORD") as String?)
+        }
     }
 
     buildTypes {
@@ -26,6 +35,7 @@ android {
                 "proguard-rules.pro"
             )
             isDebuggable = false
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

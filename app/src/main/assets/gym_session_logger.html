@@ -1,0 +1,614 @@
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #111317;
+    --panel: rgba(18, 18, 18, 0.96);
+    --panel-soft: rgba(255, 255, 255, 0.03);
+    --line: rgba(255, 255, 255, 0.06);
+    --line-soft: rgba(255, 255, 255, 0.04);
+    --text: #ffffff;
+    --muted: rgba(255, 255, 255, 0.62);
+    --muted-soft: rgba(255, 255, 255, 0.42);
+    --radius: 32px;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  button, input {
+    font: inherit;
+    color: inherit;
+  }
+
+  button {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    outline: none;
+    background: transparent;
+  }
+
+  button:focus,
+  button:active,
+  button:focus-visible,
+  input:focus,
+  input:focus-visible {
+    outline: none;
+  }
+
+  .stage {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 12px;
+    background:
+      radial-gradient(circle at top, rgba(255, 255, 255, 0.04), transparent 44%),
+      var(--bg);
+  }
+
+  .phone {
+    width: min(100%, 760px);
+    height: 100%;
+    background: var(--panel);
+    border-radius: var(--radius);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+  }
+
+  .status-bar {
+    padding: 12px 20px 4px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .header {
+    padding: 8px 20px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .header-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .header-date {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .pill {
+    color: var(--text);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--line);
+    padding: 0 20px;
+  }
+
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 10px 0;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+  }
+
+  .tab.active {
+    color: var(--text);
+    font-weight: 600;
+    border-bottom-color: var(--text);
+  }
+
+  .scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+  }
+
+  .exercise-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 4px 0 2px;
+  }
+
+  .exercise-card {
+    background: var(--panel-soft);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+
+  .exercise-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .exercise-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .exercise-muscle {
+    font-size: 11px;
+    color: var(--muted-soft);
+    margin-top: 2px;
+  }
+
+  .icon-btn {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 18px;
+    line-height: 1;
+    padding: 6px;
+    border-radius: 999px;
+  }
+
+  .icon-btn:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .col-labels,
+  .set-row {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr) 32px;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .col-labels {
+    margin: 0 0 6px;
+    padding: 0 0 2px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted-soft);
+  }
+
+  .col-labels .col-lbl:nth-child(1),
+  .set-num {
+    text-align: center;
+  }
+
+  .set-row {
+    padding: 5px 0;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  .set-row:first-of-type {
+    border-top: none;
+  }
+
+  .set-num {
+    font-size: 12px;
+    color: var(--muted-soft);
+  }
+
+  .set-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 13px;
+    text-align: center;
+    color: var(--text);
+  }
+
+  .set-input::placeholder {
+    color: rgba(255, 255, 255, 0.28);
+  }
+
+  .check-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .check-btn.done {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+
+  .add-set-btn,
+  .add-exercise-btn,
+  .finish-btn {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .add-set-btn {
+    margin-top: 8px;
+    width: 100%;
+    padding: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .add-exercise-btn {
+    width: 100%;
+    padding: 12px;
+    font-size: 14px;
+    color: var(--muted);
+    border: 1px dashed var(--line);
+    border-radius: 12px;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .stat-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+
+  .stat-label,
+  .timer-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .stat-value,
+  .timer-value {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .timer-bar {
+    background: rgba(255, 255, 255, 0.02);
+    border-top: 1px solid var(--line-soft);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .finish-btn {
+    background: var(--text);
+    color: #0b0b0b;
+    border-radius: 20px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .timer-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  @media (max-width: 700px) {
+    .stage {
+      padding: 0;
+    }
+
+    .phone {
+      width: 100%;
+      height: 100%;
+      border-radius: 0;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="phone">
+    <div class="header">
+      <div>
+        <div id="session-title" class="header-title">Today's session</div>
+        <div id="session-date" class="header-date">Friday, 29 May</div>
+      </div>
+      <button class="pill" type="button" onclick="handleModeChip()">Push day ↗</button>
+    </div>
+
+    <div class="tab-bar">
+      <div id="tab-workout" class="tab active">Workout</div>
+      <div id="tab-history" class="tab">History</div>
+      <div id="tab-prs" class="tab">PRs</div>
+    </div>
+
+    <div class="scroll-area">
+      <div class="metric-grid">
+        <div class="stat-card">
+          <div class="stat-label">Duration</div>
+          <div id="duration-value" class="stat-value">00:00</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Volume</div>
+          <div id="volume-value" class="stat-value">0<span style="font-size:11px;color:rgba(255,255,255,0.45);">kg</span></div>
+        </div>
+      </div>
+
+      <div class="section-label">Exercises</div>
+
+      <div id="exercise-list" class="exercise-list"></div>
+      <div id="empty-state" class="exercise-card" style="display:none; color: rgba(255,255,255,0.55); text-align: center;">
+        Add an exercise to begin logging.
+      </div>
+
+      <button class="add-exercise-btn" type="button" onclick="handleAddExercise()">+ Add exercise</button>
+    </div>
+
+    <div class="timer-bar">
+      <div>
+        <div class="timer-label">Session time</div>
+        <div id="timer" class="timer-value">00:00</div>
+      </div>
+      <div class="timer-actions">
+        <button id="start-btn" class="finish-btn" type="button" onclick="handleStart()">Start</button>
+        <button id="finish-btn" class="finish-btn" type="button" onclick="handleFinish()">Finish ↗</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function handleModeChip() {
+    if (window.Android && Android.selectModeChip) {
+      Android.selectModeChip();
+    }
+  }
+
+  function handleAddExercise() {
+    if (window.Android && Android.addExercise) {
+      Android.addExercise('');
+    }
+  }
+
+  function handleAddSet(exerciseIndex) {
+    if (window.Android && Android.addSet) {
+      Android.addSet(exerciseIndex);
+    }
+  }
+
+  function handleRemoveExercise(exerciseIndex) {
+    if (window.Android && Android.removeExercise) {
+      Android.removeExercise(exerciseIndex);
+    }
+  }
+
+  function handleSetToggle(button, exerciseIndex, setIndex) {
+    if (window.Android && Android.toggleSet) {
+      Android.toggleSet(exerciseIndex, setIndex);
+    }
+  }
+
+  function handleSetRepsChange(exerciseIndex, setIndex, value) {
+    if (window.Android && Android.updateSetReps) {
+      Android.updateSetReps(exerciseIndex, setIndex, value);
+    }
+  }
+
+  function handleSetWeightChange(exerciseIndex, setIndex, value) {
+    if (window.Android && Android.updateSetWeight) {
+      Android.updateSetWeight(exerciseIndex, setIndex, value);
+    }
+  }
+
+  function handleStart() {
+    if (window.Android && Android.startSession) {
+      Android.startSession();
+    }
+  }
+
+  function handleFinish() {
+    if (window.Android && Android.finishSession) {
+      Android.finishSession();
+    }
+  }
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function renderExercises(exercises) {
+    var exerciseList = document.getElementById('exercise-list');
+    var emptyState = document.getElementById('empty-state');
+    if (!exerciseList || !emptyState) {
+      return;
+    }
+
+    if (!exercises || !exercises.length) {
+      exerciseList.innerHTML = '';
+      emptyState.style.display = 'block';
+      return;
+    }
+
+    emptyState.style.display = 'none';
+    var markup = '';
+    exercises.forEach(function(exercise, exerciseIndex) {
+      markup += '<div class="exercise-card">';
+      markup += '<div class="exercise-header">';
+      markup += '<div><div class="exercise-name">' + escapeHtml(exercise.name) + '</div><div class="exercise-muscle">' + escapeHtml(exercise.muscle || '') + '</div></div>';
+      markup += '<button class="icon-btn" type="button" aria-label="Remove exercise" onclick="handleRemoveExercise(' + exerciseIndex + ')">✕</button>';
+      markup += '</div>';
+      markup += '<div class="col-labels"><div class="col-lbl">Set</div><div class="col-lbl">Weight</div><div class="col-lbl">Reps</div><div class="col-lbl"></div></div>';
+      (exercise.sets || []).forEach(function(set, setIndex) {
+        markup += '<div class="set-row">';
+        markup += '<div class="set-num">' + (setIndex + 1) + '</div>';
+        markup += '<input class="set-input" value="' + escapeHtml(set.weight) + '" inputmode="decimal" aria-label="' + escapeHtml(exercise.name) + ' weight set ' + (setIndex + 1) + '" onchange="handleSetWeightChange(' + exerciseIndex + ', ' + setIndex + ', this.value)">';
+        markup += '<input class="set-input" value="' + escapeHtml(set.reps) + '" inputmode="numeric" aria-label="' + escapeHtml(exercise.name) + ' reps set ' + (setIndex + 1) + '" onchange="handleSetRepsChange(' + exerciseIndex + ', ' + setIndex + ', this.value)">';
+        markup += '<button class="check-btn' + (set.completed ? ' done' : '') + '" type="button" aria-label="Toggle set complete" onclick="handleSetToggle(this, ' + exerciseIndex + ', ' + setIndex + ')">✓</button>';
+        markup += '</div>';
+      });
+      markup += '<button class="add-set-btn" type="button" onclick="handleAddSet(' + exerciseIndex + ')">+ Add set</button>';
+      markup += '</div>';
+    });
+
+    exerciseList.innerHTML = markup;
+  }
+
+  function renderApp(data) {
+    var sessionTitle = document.getElementById('session-title');
+    var sessionDate = document.getElementById('session-date');
+    var durationValue = document.getElementById('duration-value');
+    var volumeValue = document.getElementById('volume-value');
+    var timerValue = document.getElementById('timer');
+    var startButton = document.getElementById('start-btn');
+    var finishButton = document.getElementById('finish-btn');
+    var historyTab = document.getElementById('tab-history');
+
+    if (sessionTitle) {
+      sessionTitle.textContent = data.sessionTitle || "Today's session";
+    }
+    if (sessionDate) {
+      sessionDate.textContent = data.sessionDate || '';
+    }
+    if (durationValue) {
+      durationValue.textContent = data.workoutDuration || '00:00';
+    }
+    if (volumeValue) {
+      var rounded = Math.round(Number(data.sessionVolume || 0));
+      volumeValue.innerHTML = rounded + '<span style="font-size:11px;color:rgba(255,255,255,0.45);">kg</span>';
+    }
+    if (timerValue) {
+      timerValue.textContent = data.workoutDuration || '00:00';
+    }
+    if (startButton) {
+      startButton.textContent = 'Start';
+    }
+    if (finishButton) {
+      finishButton.textContent = 'Finish ↗';
+    }
+    if (historyTab) {
+      historyTab.style.display = data.historyExists ? 'block' : 'none';
+    }
+
+    renderExercises(data.exercises || []);
+  }
+
+  window.receiveAppData = function(json) {
+    try {
+      var data = JSON.parse(json);
+      renderApp(data);
+    } catch (e) {
+      // ignore bad payloads
+    }
+  };
+
+  var __mockTimerInterval = null;
+  var __mockTimerStart = 0;
+
+  function __mockUpdateTimer() {
+    var elapsed = Math.floor((Date.now() - __mockTimerStart) / 1000);
+    var minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+    var seconds = (elapsed % 60).toString().padStart(2, '0');
+    var timer = document.getElementById('timer');
+    if (timer) {
+      timer.textContent = minutes + ':' + seconds;
+    }
+  }
+
+  function startLocalTimer() {
+    if (__mockTimerInterval) {
+      return;
+    }
+    __mockTimerStart = Date.now();
+    __mockUpdateTimer();
+    __mockTimerInterval = setInterval(__mockUpdateTimer, 1000);
+  }
+
+  function stopLocalTimer() {
+    if (!__mockTimerInterval) {
+      return;
+    }
+    clearInterval(__mockTimerInterval);
+    __mockTimerInterval = null;
+  }
+
+  window.onAndroidStart = startLocalTimer;
+  window.onAndroidFinish = stopLocalTimer;
+</script>
+</body>
+</html>
