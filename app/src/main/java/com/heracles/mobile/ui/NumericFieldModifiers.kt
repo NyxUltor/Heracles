@@ -1,3 +1,13 @@
+/*
+ File: ui/NumericFieldModifiers.kt
+ What it does: Provides a `Modifier.scrubbableNumericField` to enable pointer-drag scrubbing for numeric inputs.
+ Main inputs: pointer gestures, current text value, sensitivity settings.
+ Main outputs: calls `onValueChange` with scrubbed numeric strings and toggles scrubbing state via callbacks.
+ Key functions/classes: `scrubbableNumericField` extension.
+*/
+
+// Note: The pointerInput intentionally omits `text` from keys to avoid cancelling active gestures when text updates.
+
 package com.heracles.mobile.ui
 
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -13,6 +23,7 @@ fun Modifier.scrubbableNumericField(
     text: String,
     sensitivity: Double,
     decimalPlaces: Int,
+    stepPerTick: Double? = null,
     onScrubStart: (() -> Unit)? = null,
     onScrubEnd: (() -> Unit)? = null,
     onValueChange: (String) -> Unit,
@@ -56,7 +67,13 @@ fun Modifier.scrubbableNumericField(
                 if (scrubbing) {
                     // when scrubbing we mark start/end via callbacks; the screen
                     // will disable parent scrolling using `scrubberGestureActive`.
-                    val nextValue = scrubNumericText(gestureStartText, dragX, sensitivity, decimalPlaces)
+                    val nextValue = scrubNumericText(
+                        currentText = gestureStartText,
+                        dragX = dragX,
+                        sensitivity = sensitivity,
+                        decimalPlaces = decimalPlaces,
+                        stepPerTick = stepPerTick,
+                    )
                     if (nextValue.isNotBlank() && nextValue != text) {
                         onValueChange(nextValue)
                     }

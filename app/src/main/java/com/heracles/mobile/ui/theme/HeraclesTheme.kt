@@ -1,3 +1,11 @@
+/*
+ File: ui/theme/HeraclesTheme.kt
+ What it does: Resolves the active color scheme, density, shapes, and wallpaper behavior for the entire Compose app.
+ Main inputs: theme mod selection, UI fidelity, dark/light mode, and token sets.
+ Main outputs: MaterialTheme color/shape composition locals and optional wallpaper background.
+ Key functions/classes: `HeraclesTheme`, `defaultTokenSet`, token-to-color helpers.
+*/
+
 package com.heracles.mobile.ui.theme
 
 import android.graphics.Bitmap
@@ -9,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -30,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.heracles.mobile.model.ShapeMode
+import com.heracles.mobile.model.CuratedSchemes
 import com.heracles.mobile.model.UiFidelityLevel
 import com.heracles.mobile.model.ThemeColorScheme
 import com.heracles.mobile.model.ThemeMod
@@ -43,14 +53,23 @@ fun HeraclesTheme(
     themeMod: ThemeMod? = null,
     activeLightSchemeId: String = "default_light",
     activeDarkSchemeId: String = "default_dark",
+    curatedSchemeId: String = "hellfire",
     uiFidelity: UiFidelityLevel = UiFidelityLevel.BALANCED,
     content: @Composable () -> Unit,
 ) {
-    val activeTokens = remember(themeMod, darkTheme) {
+    val activeTokens = remember(themeMod, darkTheme, uiFidelity, activeLightSchemeId, activeDarkSchemeId, curatedSchemeId) {
         when {
-            themeMod == null -> defaultTokenSet(darkTheme)
-            darkTheme -> themeMod.resolveDarkScheme(activeDarkSchemeId).tokens
-            else -> themeMod.resolveLightScheme(activeLightSchemeId).tokens
+            uiFidelity == UiFidelityLevel.CUSTOM -> {
+                when {
+                    themeMod == null -> defaultTokenSet(darkTheme)
+                    darkTheme -> themeMod.resolveDarkScheme(activeDarkSchemeId).tokens
+                    else -> themeMod.resolveLightScheme(activeLightSchemeId).tokens
+                }
+            }
+            else -> {
+                val curatedScheme = CuratedSchemes.ALL.firstOrNull { it.id == curatedSchemeId } ?: CuratedSchemes.HELLFIRE
+                if (darkTheme) curatedScheme.darkTokens else curatedScheme.lightTokens
+            }
         }
     }
     val colorScheme = remember(activeTokens, darkTheme) { activeTokens.toColorScheme(darkTheme) }
@@ -60,9 +79,15 @@ fun HeraclesTheme(
         UiFidelityLevel.MINIMAL -> 0f
         UiFidelityLevel.BALANCED -> 0f
         UiFidelityLevel.RICH -> 10f
+        UiFidelityLevel.CUSTOM -> 0f
     }
 
-    CompositionLocalProvider(LocalDensity provides Density(density.density * resolvedUiScale.toFloat(), density.fontScale * resolvedUiScale.toFloat())) {
+    val configuration = LocalConfiguration.current
+    val screenSize = if (configuration.screenWidthDp < 600) com.heracles.mobile.ui.ScreenSize.COMPACT else com.heracles.mobile.ui.ScreenSize.EXPANDED
+    CompositionLocalProvider(
+        LocalDensity provides Density(density.density * resolvedUiScale.toFloat(), density.fontScale * resolvedUiScale.toFloat()),
+        com.heracles.mobile.ui.LocalScreenSize provides screenSize
+    ) {
         val shapeSet = remember(themeMod, uiFidelity) {
             if (uiFidelity == UiFidelityLevel.MINIMAL || themeMod?.style?.shapeStyle == ShapeMode.RECTANGLE || themeMod?.id == "stone_temple") {
                 Shapes(

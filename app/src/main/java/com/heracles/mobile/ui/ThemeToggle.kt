@@ -1,3 +1,11 @@
+/*
+ File: ui/ThemeToggle.kt
+ What it does: Provides UI controls for switching theme state or mode selection in the app.
+ Main inputs: current theme-related values from the ViewModel or settings.
+ Main outputs: updated theme selection and visual toggle state.
+ Key functions/classes: theme toggle composables.
+*/
+
 package com.heracles.mobile.ui
 
 import androidx.compose.material.icons.Icons

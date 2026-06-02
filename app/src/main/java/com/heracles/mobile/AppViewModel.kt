@@ -1,17 +1,32 @@
+/*
+ File: AppViewModel.kt
+ What it does: Central state holder for the app, coordinating workouts, sessions, theme mods, settings, and persistence actions.
+ Main inputs: repository data, user interactions from UI composables, and startup hydration state.
+ Main outputs: mutable UI state, session/theme changes, and repository writes.
+ Key functions/classes: `AppViewModel`, session/timer helpers, theme selection helpers.
+*/
+
 package com.heracles.mobile
 
 import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.heracles.mobile.model.CuratedScheme
+import com.heracles.mobile.model.CuratedSchemes
 import com.heracles.mobile.model.AppSettings
+import com.heracles.mobile.model.DualAxisMetric
+import com.heracles.mobile.model.ExerciseProfile
 import com.heracles.mobile.model.ShapeMode
 import com.heracles.mobile.model.SystemUiMode
 import com.heracles.mobile.model.PrebuiltWorkoutSession
+import com.heracles.mobile.model.StrengthHistoryEntry
 import com.heracles.mobile.model.ThemeColorScheme
 import com.heracles.mobile.model.ThemeMod
 import com.heracles.mobile.model.ThemeStylePack
@@ -28,6 +43,7 @@ import com.heracles.mobile.storage.SessionRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
@@ -66,6 +82,9 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
         private set
 
     var workoutDuration by mutableStateOf("")
+        private set
+
+    var isTimerRunning by mutableStateOf(false)
         private set
 
     var bodyWeight by mutableStateOf("")
@@ -112,8 +131,14 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     val bodyweightHistory = mutableStateListOf<BodyweightEntry>()
     val themeMods = mutableStateListOf<ThemeMod>()
     val prebuiltSessions = mutableStateListOf<PrebuiltWorkoutSession>()
+    val exerciseProfiles = mutableStateListOf<ExerciseProfile>()
+    val strengthHistory = mutableStateListOf<StrengthHistoryEntry>()
+    val sufferingInputs = mutableStateMapOf<String, Double>()
+    private val curatedSchemeUsageCounts = mutableStateMapOf<String, Int>()
 
     private var autosaveJob: Job? = null
+    private var workoutTimerJob: Job? = null
+    private var workoutTimerElapsedSeconds by mutableLongStateOf(0L)
     private var startupHydrationStarted = false
 
     init {
@@ -277,7 +302,7 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun updateWorkoutDuration(value: String) {
-        workoutDuration = sanitizeNumericText(value)
+        workoutDuration = value.normalizeWorkoutDurationDisplay()
         autosave()
     }
 
@@ -379,6 +404,20 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
                 if (autosave != null && settings.restoreLatestOnOpen && currentScreen == "Logger") {
                     restoreFromSession(autosave)
                 }
+                loadTrackerExtendedData()
+            }
+        }
+    }
+
+    fun loadTrackerExtendedData() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val profiles = repository.loadExerciseProfiles()
+            val history = repository.loadStrengthHistory()
+            withContext(Dispatchers.Main) {
+                exerciseProfiles.clear()
+                exerciseProfiles.addAll(profiles.values)
+                strengthHistory.clear()
+                strengthHistory.addAll(history)
             }
         }
     }
@@ -427,6 +466,10 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
         currentSessionSavedAt = null
         exercises.clear()
         settings.defaultExercises.forEach { exercises.add(ExerciseDraft(it)) }
+        workoutTimerElapsedSeconds = 0L
+        isTimerRunning = false
+        workoutTimerJob?.cancel()
+        workoutTimerJob = null
         workoutDuration = ""
         bodyWeight = ""
         if (scheduleAutosave) {
@@ -435,8 +478,72 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun startNewSession() {
+        stopWorkoutTimer()
+        workoutTimerElapsedSeconds = 0L
+        workoutDuration = ""
         restoreDefaults()
         currentScreen = "Logger"
+    }
+
+    fun startTimedSession() {
+        beginWorkoutTimer()
+    }
+
+    fun beginWorkoutTimer() {
+        if (isTimerRunning) {
+            return
+        }
+
+        if (workoutTimerJob == null) {
+            workoutTimerElapsedSeconds = workoutDuration.toWorkoutTimerSeconds().takeIf { it > 0L } ?: workoutTimerElapsedSeconds
+        }
+        isTimerRunning = true
+        workoutTimerJob?.cancel()
+        workoutTimerJob = viewModelScope.launch {
+            while (isActive) {
+                workoutDuration = formatWorkoutDuration(workoutTimerElapsedSeconds)
+                delay(1000)
+                workoutTimerElapsedSeconds += 1
+            }
+        }
+    }
+
+    fun stopWorkoutTimer() {
+        workoutTimerJob?.cancel()
+        workoutTimerJob = null
+        isTimerRunning = false
+    }
+
+    private fun formatWorkoutDuration(elapsedSeconds: Long): String {
+        val hours = elapsedSeconds / 3600
+        val minutes = (elapsedSeconds % 3600) / 60
+        val seconds = elapsedSeconds % 60
+        return if (hours > 0) {
+            String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format(Locale.US, "%02d:%02d", minutes, seconds)
+        }
+    }
+
+    private fun String.normalizeWorkoutDurationDisplay(): String {
+        val trimmed = trim()
+        if (trimmed.isBlank()) return ""
+        return formatWorkoutDuration(toWorkoutTimerSeconds())
+    }
+
+    private fun String.toWorkoutTimerSeconds(): Long {
+        val normalized = trim()
+        if (normalized.isBlank()) return 0L
+        if (normalized.all { it.isDigit() }) {
+            return normalized.toLongOrNull() ?: 0L
+        }
+        val parts = normalized.split(":").mapNotNull { it.toLongOrNull() }
+        return when (parts.size) {
+            3 -> (parts[0] * 3600) + (parts[1] * 60) + parts[2]
+            2 -> (parts[0] * 60) + parts[1]
+            1 -> parts[0]
+            else -> 0L
+        }
     }
 
     fun startCreatingMod() {
@@ -504,6 +611,20 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
         updateSettings(settings.copy(activeDarkSchemeId = schemeId))
     }
 
+    fun selectCuratedScheme(schemeId: String) {
+        curatedSchemeUsageCounts[schemeId] = (curatedSchemeUsageCounts[schemeId] ?: 0) + 1
+        updateSettings(settings.copy(curatedSchemeId = schemeId))
+    }
+
+    fun activeCuratedScheme(): CuratedScheme {
+        return CuratedSchemes.ALL.firstOrNull { it.id == settings.curatedSchemeId }
+            ?: CuratedSchemes.HELLFIRE
+    }
+
+    fun curatedSchemeUsageCount(schemeId: String): Int {
+        return curatedSchemeUsageCounts[schemeId] ?: 0
+    }
+
     fun currentEditingMod(): ThemeMod? {
         return themeMods.firstOrNull { it.id == editingModId }
     }
@@ -546,11 +667,14 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun restoreFromSession(session: WorkoutSession) {
+        stopWorkoutTimer()
         val normalizedSession = session.normalizedForEditing()
         currentSessionId = normalizedSession.id
         currentSessionSavedAt = normalizedSession.savedAt
         bodyWeight = normalizedSession.bodyWeight.orEmpty()
-        workoutDuration = normalizedSession.workoutDuration.orEmpty()
+        val restoredDuration = normalizedSession.workoutDuration.orEmpty()
+        workoutDuration = restoredDuration.normalizeWorkoutDurationDisplay()
+        workoutTimerElapsedSeconds = workoutDuration.toWorkoutTimerSeconds()
         exercises.clear()
         normalizedSession.exercises.forEach { exercise ->
             val draft = ExerciseDraft(exercise.name)
@@ -569,10 +693,12 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     }
 
     fun restoreFromPrebuiltSession(session: PrebuiltWorkoutSession) {
+        stopWorkoutTimer()
         currentSessionId = null
         currentSessionSavedAt = null
         bodyWeight = session.bodyWeight.orEmpty()
-        workoutDuration = session.workoutDuration.orEmpty()
+        workoutDuration = ""
+        workoutTimerElapsedSeconds = 0L
         exercises.clear()
         session.exercises.forEach { exercise ->
             val draft = ExerciseDraft(exercise.name)
@@ -593,6 +719,60 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
     fun addExercise(name: String = "") {
         exercises.add(ExerciseDraft(sanitizeExerciseName(name).toTitleCaseOrDefault()))
         scheduleAutosave()
+    }
+
+    fun exerciseNameSuggestions(query: String, limit: Int = 6): List<String> {
+        val normalizedQuery = sanitizeExerciseName(query).lowercase(Locale.getDefault())
+        if (normalizedQuery.isBlank()) {
+            return emptyList()
+        }
+
+        val candidates = buildSet {
+            settings.defaultExercises.forEach { add(it) }
+            exercises.forEach { add(it.name) }
+            sessions.forEach { session -> session.exercises.forEach { add(it.name) } }
+            prebuiltSessions.forEach { session -> session.exercises.forEach { add(it.name) } }
+        }
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase(Locale.getDefault()) }
+
+        val usageCounts = buildMap<String, Int> {
+            candidates.forEach { candidate -> put(candidate.lowercase(Locale.getDefault()), 0) }
+            settings.defaultExercises.forEach { exercise ->
+                val key = exercise.lowercase(Locale.getDefault())
+                put(key, (get(key) ?: 0) + 3)
+            }
+            exercises.forEach { draft ->
+                val key = draft.name.lowercase(Locale.getDefault())
+                put(key, (get(key) ?: 0) + 5)
+            }
+            sessions.forEach { session ->
+                session.exercises.forEach { exercise ->
+                    val key = exercise.name.lowercase(Locale.getDefault())
+                    put(key, (get(key) ?: 0) + 2)
+                }
+            }
+            prebuiltSessions.forEach { session ->
+                session.exercises.forEach { exercise ->
+                    val key = exercise.name.lowercase(Locale.getDefault())
+                    put(key, (get(key) ?: 0) + 1)
+                }
+            }
+        }
+
+        return candidates
+            .mapNotNull { candidate ->
+                val score = fuzzyScore(candidate, normalizedQuery) ?: return@mapNotNull null
+                candidate to score
+            }
+            .sortedWith(
+                compareByDescending<Pair<String, Int>> { usageCounts[it.first.lowercase(Locale.getDefault())] ?: 0 }
+                    .thenBy { it.second }
+                    .thenBy { it.first.lowercase(Locale.getDefault()) }
+            )
+            .map { it.first }
+            .take(limit)
     }
 
     fun removeExercise(id: String) {
@@ -640,19 +820,22 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
         val snapshot = exercises.map { exercise ->
             ExerciseEntry(
                 name = exercise.name,
-                sets = exercise.sets.map { set ->
-                    WorkoutSet(
-                        reps = resolveSetReps(set),
-                        weight = resolveSetWeight(set),
-                        completed = set.completed,
-                    )
-                }
+                sets = exercise.sets
+                    .filter { it.completed }
+                    .map { set ->
+                        WorkoutSet(
+                            reps = resolveSetReps(set),
+                            weight = resolveSetWeight(set),
+                            completed = true,
+                        )
+                    }
             )
         }
         return calculateVolume(snapshot)
     }
 
     fun saveSession() {
+        stopWorkoutTimer()
         val session = toSession(UUID.randomUUID().toString())
         viewModelScope.launch(Dispatchers.IO) {
             repository.saveSession(session)
@@ -676,6 +859,50 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
                 bodyweightHistory.addAll(updatedBodyweights)
                 trackerBodyWeight = bodyweightHistory.lastOrNull()?.weight?.toString().orEmpty()
                 lastSaveMessage = "Session saved"
+                recordStrengthEntries()
+            }
+        }
+    }
+
+    fun updateSufferingInput(exerciseName: String, value: Double) {
+        sufferingInputs[exerciseName.lowercase().trim()] = value.coerceIn(0.0, 5.0)
+    }
+
+    fun buildDualAxisMetrics(): List<DualAxisMetric> {
+        val bw = bodyweightHistory.lastOrNull()?.weight ?: 70.0
+        val profileMap = exerciseProfiles.associateBy { it.exerciseId.lowercase().trim() }
+        return com.heracles.mobile.logic.HerculesMathEngine.buildDualAxisMetrics(
+            sessions = sessions.toList(),
+            profileMap = profileMap,
+            strengthHistory = strengthHistory.toList(),
+            sufferingInputs = sufferingInputs.toMap(),
+            bodyweightKg = bw,
+        )
+    }
+
+    fun recordStrengthEntries() {
+        val today = java.time.LocalDate.now().toString()
+        val entries = exercises.flatMap { exercise ->
+            exercise.sets
+                .filter { (it.weight.toDoubleOrNull() ?: 0.0) > 0.0 && (it.reps.toIntOrNull() ?: 0) > 0 }
+                .map { set ->
+                    val w = set.weight.toDoubleOrNull() ?: 0.0
+                    val r = set.reps.toIntOrNull() ?: 0
+                    val orm = com.heracles.mobile.logic.HerculesMathEngine.computeEpleyOneRepMax(w, r)
+                    StrengthHistoryEntry(
+                        exerciseName = exercise.name,
+                        date = today,
+                        estimatedOneRepMax = orm,
+                    )
+                }
+        }
+        if (entries.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            entries.forEach { entry -> repository.appendStrengthHistoryEntry(entry) }
+            val updated = repository.loadStrengthHistory()
+            withContext(Dispatchers.Main) {
+                strengthHistory.clear()
+                strengthHistory.addAll(updated)
             }
         }
     }
@@ -770,13 +997,15 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
         val entries = exercises.map { exercise ->
             ExerciseEntry(
                 name = exercise.name.ifBlank { "Exercise" },
-                sets = exercise.sets.map { set ->
-                    WorkoutSet(
-                        reps = resolveSetReps(set),
-                        weight = resolveSetWeight(set),
-                        completed = set.completed,
-                    )
-                }
+                sets = exercise.sets
+                    .filter { it.completed }
+                    .map { set ->
+                        WorkoutSet(
+                            reps = resolveSetReps(set),
+                            weight = resolveSetWeight(set),
+                            completed = true,
+                        )
+                    }
             )
         }
         return WorkoutSession(
@@ -924,5 +1153,21 @@ class AppViewModel(private val repository: SessionRepository) : ViewModel() {
             darkSchemes = normalizedDark,
             style = normalizedStyle,
         )
+    }
+
+    private fun fuzzyScore(candidate: String, normalizedQuery: String): Int? {
+        val value = candidate.lowercase(Locale.getDefault())
+        if (value == normalizedQuery) return 0
+        if (value.startsWith(normalizedQuery)) return 1
+        if (value.contains(normalizedQuery)) return 2
+
+        var queryIndex = 0
+        value.forEach { character ->
+            if (queryIndex < normalizedQuery.length && character == normalizedQuery[queryIndex]) {
+                queryIndex += 1
+            }
+        }
+        if (queryIndex == normalizedQuery.length) return 3
+        return null
     }
 }

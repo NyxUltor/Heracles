@@ -1,3 +1,11 @@
+/*
+ File: ui/SessionsScreen.kt
+ What it does: Lists saved workout sessions and provides access to view or restore them.
+ Main inputs: stored session history from the ViewModel.
+ Main outputs: session selection/restoration actions into the logger workflow.
+ Key functions/classes: sessions list composables and restore handlers.
+*/
+
 package com.heracles.mobile.ui
 
 import androidx.compose.foundation.layout.Arrangement

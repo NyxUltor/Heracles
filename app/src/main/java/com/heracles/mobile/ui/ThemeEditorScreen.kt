@@ -1,3 +1,11 @@
+/*
+ File: ui/ThemeEditorScreen.kt
+ What it does: UI for creating and editing ThemeMod packs including token editing and style settings.
+ Main inputs: an existing `ThemeMod` (for edit) or blank template for creation.
+ Main outputs: adds/updates `ThemeMod` objects persisted via ViewModel and repository.
+ Key functions/classes: editor composables and save/apply handlers.
+*/
+
 package com.heracles.mobile.ui
 
 import android.content.Intent

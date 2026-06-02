@@ -1,3 +1,11 @@
+/*
+ File: MainActivity.kt
+ What it does: Android entry point activity that hosts the Compose UI and handles lifecycle integration.
+ Main inputs: Android intents, application context, theme and settings from ViewModel.
+ Main outputs: launches the Compose content (`HeraclesApp`) and responds to system events.
+ Key functions/classes: `MainActivity` activity class.
+*/
+
 package com.heracles.mobile
 
 import android.os.Bundle
@@ -46,6 +54,7 @@ class MainActivity : ComponentActivity() {
                 themeMod = activeMod,
                 activeLightSchemeId = appViewModel.settings.activeLightSchemeId,
                 activeDarkSchemeId = appViewModel.settings.activeDarkSchemeId,
+                curatedSchemeId = appViewModel.settings.curatedSchemeId,
                 uiFidelity = appViewModel.settings.uiFidelity,
             ) {
                 HeraclesApp(appViewModel)

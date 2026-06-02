@@ -225,3 +225,11 @@ local.properties
 # Keystore (do not commit)
 keystore/
 *.jks
+
+# RANDOM TEXT FILES
+docs/
+PLANNED_CHANGES.md
+README_ANDROID.md
+
+# Fake data
+tmp_seed/

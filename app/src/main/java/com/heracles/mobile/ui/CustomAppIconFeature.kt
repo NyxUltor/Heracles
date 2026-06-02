@@ -1,3 +1,11 @@
+/*
+ File: ui/CustomAppIconFeature.kt
+ What it does: Implements custom app icon selection/preview UI shown in Settings.
+ Main inputs: icon-related state and user selection events.
+ Main outputs: icon preview and settings changes for the launcher icon.
+ Key functions/classes: `CustomAppIconCard` and related feature composables.
+*/
+
 package com.heracles.mobile.ui
 
 import android.content.Context

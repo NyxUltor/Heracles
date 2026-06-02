@@ -1,3 +1,11 @@
+/*
+ File: logic/WorkoutLogic.kt
+ What it does: Contains core workout calculation utilities (volume, totals) and the fault-tolerant pre-built session parser.
+ Main inputs: structured session/exercise data (reps, weight, sets) and raw template text strings.
+ Main outputs: numeric results such as session volume and parsed PrebuiltWorkoutSession objects.
+ Key functions/classes: `calculateVolume`, `buildSessionFilename`, `parsePrebuiltWorkoutTemplate`.
+*/
+
 package com.heracles.mobile.logic
 
 import com.heracles.mobile.model.ExerciseEntry
@@ -28,6 +36,16 @@ data class PrebuiltWorkoutParseResult(
     val error: String? = null,
 )
 
+private val SET_PATTERN = Regex("""(\d+)\s*[xX*@]\s*(\d+(?:\.\d+)?)""")
+
+private fun isValidExerciseName(line: String): Boolean {
+    val cleaned = line.substringAfter(":", line).trim()
+    if (cleaned.length < 2) return false
+    val digitCount = cleaned.count { it.isDigit() }
+    val digitRatio = digitCount.toDouble() / cleaned.length.toDouble()
+    return digitRatio <= 0.5
+}
+
 fun parsePrebuiltWorkoutTemplate(sourceText: String): PrebuiltWorkoutParseResult {
     val lines = sourceText.lineSequence()
         .map { it.trim() }
@@ -40,7 +58,6 @@ fun parsePrebuiltWorkoutTemplate(sourceText: String): PrebuiltWorkoutParseResult
 
     var title = "Imported workout"
     var bodyWeight: String? = null
-    var workoutDuration: String? = null
     val exercises = mutableListOf<PrebuiltWorkoutExercise>()
 
     var currentExerciseName: String? = null
@@ -48,7 +65,7 @@ fun parsePrebuiltWorkoutTemplate(sourceText: String): PrebuiltWorkoutParseResult
 
     fun finishExercise() {
         val name = currentExerciseName
-        if (!name.isNullOrBlank()) {
+        if (!name.isNullOrBlank() && currentSets.isNotEmpty()) {
             exercises.add(
                 PrebuiltWorkoutExercise(
                     name = name,
@@ -60,67 +77,73 @@ fun parsePrebuiltWorkoutTemplate(sourceText: String): PrebuiltWorkoutParseResult
         currentSets = mutableListOf()
     }
 
-    lines.forEachIndexed { index, rawLine ->
+    val knownPrefixes = listOf(
+        "workout:", "bodyweight:", "exercise:", "set:"
+    )
+
+    lines.forEach { rawLine ->
+        val lineLower = rawLine.lowercase()
+
         when {
-            rawLine.startsWith("Workout:", ignoreCase = true) -> {
+            lineLower.startsWith("workout:") -> {
                 title = rawLine.substringAfter(":", "").trim().ifBlank { title }
             }
 
-            rawLine.startsWith("Bodyweight:", ignoreCase = true) -> {
+            lineLower.startsWith("bodyweight:") -> {
                 bodyWeight = rawLine.substringAfter(":", "").trim().ifBlank { null }
             }
 
-            rawLine.startsWith("Duration:", ignoreCase = true) -> {
-                workoutDuration = rawLine.substringAfter(":", "").trim().ifBlank { null }
-            }
-
-            rawLine.startsWith("Exercise:", ignoreCase = true) -> {
+            lineLower.startsWith("exercise:") -> {
                 finishExercise()
-                currentExerciseName = rawLine.substringAfter(":", "").trim().ifBlank {
-                    return PrebuiltWorkoutParseResult(error = "Exercise name is missing on line ${index + 1}.")
+                val name = rawLine.substringAfter(":", "").trim()
+                if (name.isNotBlank()) {
+                    currentExerciseName = name
                 }
-            }
-
-            rawLine.startsWith("Set:", ignoreCase = true) -> {
-                if (currentExerciseName.isNullOrBlank()) {
-                    return PrebuiltWorkoutParseResult(error = "Set found before any exercise on line ${index + 1}.")
-                }
-
-                val setText = rawLine.substringAfter(":", "").trim()
-                val normalized = setText
-                    .replace(Regex("\\breps?\\b", RegexOption.IGNORE_CASE), "")
-                    .replace(Regex("\\bkg\\b", RegexOption.IGNORE_CASE), "")
-                    .replace("@", "x")
-                    .replace(Regex("\\s+"), " ")
-                    .trim()
-
-                val parts = normalized.split("x").map { it.trim() }.filter { it.isNotBlank() }
-                if (parts.size < 2) {
-                    return PrebuiltWorkoutParseResult(error = "Set line must look like 'Set: 8 x 60' on line ${index + 1}.")
-                }
-
-                val reps = parts[0]
-                val weight = parts[1]
-                if (reps.toIntOrNull() == null) {
-                    return PrebuiltWorkoutParseResult(error = "Reps must be a whole number on line ${index + 1}.")
-                }
-                if (weight.toDoubleOrNull() == null) {
-                    return PrebuiltWorkoutParseResult(error = "Weight must be numeric on line ${index + 1}.")
-                }
-
-                currentSets.add(PrebuiltWorkoutSet(reps = reps, weight = weight))
+                // blank name after "Exercise:" — skip silently
             }
 
             else -> {
-                return PrebuiltWorkoutParseResult(error = "Unknown line format on line ${index + 1}: '$rawLine'.")
+                // Priority 1: Try to match as a set line using regex
+                // Catches: "Set: 8 x 60", "8x60", "8 @ 60", "5 * 100", "8 reps 60kg", "Set: 8reps @ 60kg"
+                val setMatch = SET_PATTERN.find(rawLine)
+                if (setMatch != null) {
+                    val repsToken = setMatch.groupValues[1]
+                    val weightToken = setMatch.groupValues[2]
+                    // Guard: set arrived before any exercise was declared
+                    if (currentExerciseName.isNullOrBlank()) {
+                        currentExerciseName = "Uncategorized Exercise"
+                    }
+                    currentSets.add(PrebuiltWorkoutSet(reps = repsToken, weight = weightToken))
+                    return@forEach
+                }
+
+                // Priority 2: Try to treat as an exercise name without the "Exercise:" prefix
+                // Only valid if line passes name guard and is not a known prefix
+                val hasKnownPrefix = knownPrefixes.any { lineLower.startsWith(it) }
+                if (!hasKnownPrefix && isValidExerciseName(rawLine)) {
+                    // Start a new exercise group only if:
+                    // - no current exercise exists, OR
+                    // - current exercise already has sets committed (new block starting)
+                    if (currentExerciseName.isNullOrBlank() || currentSets.isNotEmpty()) {
+                        finishExercise()
+                        currentExerciseName = rawLine.trim()
+                    }
+                    // If current exercise has no sets yet — likely a stray line, skip silently
+                    return@forEach
+                }
+
+                // Priority 3: Unknown/garbage line — skip silently, never crash
             }
         }
     }
 
+    // Commit the final exercise buffer
     finishExercise()
 
     if (exercises.isEmpty()) {
-        return PrebuiltWorkoutParseResult(error = "Add at least one exercise with one or more sets.")
+        return PrebuiltWorkoutParseResult(
+            error = "No valid exercises or sets could be parsed. Check that sets use a format like '8 x 60' or '8 @ 60'."
+        )
     }
 
     return PrebuiltWorkoutParseResult(
@@ -129,7 +152,6 @@ fun parsePrebuiltWorkoutTemplate(sourceText: String): PrebuiltWorkoutParseResult
             title = title,
             sourceText = sourceText,
             bodyWeight = bodyWeight,
-            workoutDuration = workoutDuration,
             exercises = exercises,
         )
     )

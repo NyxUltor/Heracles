@@ -1,3 +1,11 @@
+/*
+ File: ui/HeraclesApp.kt
+ What it does: Top-level Compose scaffold that wires navigation, drawer, quick setup, and screen switching.
+ Main inputs: current app state from the ViewModel and Compose navigation/drawer state.
+ Main outputs: rendered application shell and routing to the active screen.
+ Key functions/classes: `HeraclesApp`, scaffold/quick setup dialog logic.
+*/
+
 package com.heracles.mobile.ui
 
 import androidx.activity.compose.BackHandler
@@ -40,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.heracles.mobile.AppViewModel
+import com.heracles.mobile.model.UiFidelityLevel
 import com.heracles.mobile.model.SystemUiMode
 import kotlinx.coroutines.launch
 
@@ -97,7 +106,7 @@ fun HeraclesApp(viewModel: AppViewModel) {
                         viewModel.switchScreen("Tracker")
                     }
                 }
-                DrawerItem("Theme") {
+                DrawerItem("Appearance") {
                     scope.launch {
                         drawerState.close()
                         viewModel.switchScreen("Theme")
@@ -136,11 +145,12 @@ fun HeraclesApp(viewModel: AppViewModel) {
                 )
             }
         ) { padding ->
+            val innerPadding = if (viewModel.settings.uiFidelity == UiFidelityLevel.RICH) 0.dp else 16.dp
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(16.dp),
+                    .padding(innerPadding),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Box(modifier = Modifier.fillMaxWidth()) {

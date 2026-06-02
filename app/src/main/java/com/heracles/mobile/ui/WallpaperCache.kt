@@ -1,3 +1,11 @@
+/*
+ File: ui/WallpaperCache.kt
+ What it does: Caches and resolves wallpaper resources used by themed screens.
+ Main inputs: wallpaper URIs or resource identifiers.
+ Main outputs: loaded bitmap/image data ready for Compose rendering.
+ Key functions/classes: wallpaper caching/resolution helpers.
+*/
+
 package com.heracles.mobile.ui
 
 import android.content.Context

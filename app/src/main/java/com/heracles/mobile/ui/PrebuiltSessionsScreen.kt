@@ -1,8 +1,17 @@
+/*
+ File: ui/PrebuiltSessionsScreen.kt
+ What it does: Shows imported prebuilt workout templates and actions to load, preview, or delete them.
+ Main inputs: `prebuiltSessions`, pending text input, and selection state from the ViewModel.
+ Main outputs: loading templates into an active session and repository-backed updates.
+ Key functions/classes: prebuilt session screen composables and import/load handlers.
+*/
+
 package com.heracles.mobile.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,18 +32,33 @@ import com.heracles.mobile.AppViewModel
 @Composable
 fun PrebuiltSessionsScreen(viewModel: AppViewModel) {
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        
+        // Locked Input Container: Hard constraints prevent expanding past half the layout viewport
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.5f) // Restricts card to exactly half the vertical screen profile
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(12.dp)
+                    .fillMaxSize(), 
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text("Pre-built sessions", style = MaterialTheme.typography.titleLarge)
                 Text(
                     "Paste a strict workout template here, import it, then load it into the logger as a ghost-filled draft.",
                     style = MaterialTheme.typography.bodySmall,
                 )
+                
                 OutlinedTextField(
                     value = viewModel.pendingPrebuiltText,
                     onValueChange = viewModel::updatePendingPrebuiltText,
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 8,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f), // Forces the text box to take remaining available card interior space, enabling inner scrolling
+                    minLines = 4,
                     label = { Text("Paste workout template") },
                     placeholder = {
                         Text(
@@ -42,6 +66,7 @@ fun PrebuiltSessionsScreen(viewModel: AppViewModel) {
                         )
                     },
                 )
+                
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { viewModel.importPrebuiltSessionText() }) {
                         Text("Import")
@@ -56,6 +81,7 @@ fun PrebuiltSessionsScreen(viewModel: AppViewModel) {
             }
         }
 
+        // Bottom List Section: Takes up the remaining half of the viewport seamlessly
         if (viewModel.prebuiltSessions.isEmpty()) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Column(modifier = Modifier.padding(12.dp)) {
