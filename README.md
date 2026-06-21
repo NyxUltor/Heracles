@@ -19,12 +19,13 @@ Heracles keeps workout data on-device, built with Kotlin and Jetpack Compose. It
 
 | Logger (Rich theme) | Tracker (Rich theme) |
 |---|---|
-| ![Logger - Rich theme](screenshots/logger-rich.png) | ![Tracker - Rich theme](screenshots/tracker-rich.png) |
+| ![Logger - Rich theme](screenshots/logger-rich.png) | ![Tracker - Rich theme](screenshots/tracker.png) |
 
 <details>
 <summary>Default Material theme, for comparison</summary>
 
-![Logger - default theme](screenshots/logger-default.png)
+![Logger - minimal theme](screenshots/logger-minimal.png)
+![Logger - balanced theme](screenshots/logger-balanced.png)
 
 </details>
 
