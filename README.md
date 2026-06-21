@@ -17,15 +17,15 @@ Heracles keeps workout data on-device, built with Kotlin and Jetpack Compose. It
 
 ## Screenshots
 
-| Logger (Rich theme) | Tracker (Rich theme) |
+| Logger (Rich tier) | Tracker  |
 |---|---|
-| ![Logger - Rich theme](screenshots/logger-rich.png) | ![Tracker - Rich theme](screenshots/tracker.png) |
+| ![Logger - Rich tier](screenshots/logger-rich.png) | ![Tracker - Rich tier](screenshots/tracker.png) |
 
 <details>
-<summary>Default Material theme, for comparison</summary>
+<summary>Other tiers, for comparison</summary>
 
-![Logger - minimal theme](screenshots/logger-minimal.png)
-![Logger - balanced theme](screenshots/logger-balanced.png)
+![Logger - minimal tier](screenshots/logger-minimal.png)
+![Logger - balanced tier](screenshots/logger-balanced.png)
 
 </details>
 
@@ -43,7 +43,15 @@ Updates are distributed through GitHub Releases.
 
 Heracles supports multiple UI configurations (**Rich**, Balanced, Minimal, Custom). **Rich is the only configuration currently verified end-to-end** — that's the build to use if you're trying the app today. The other modes are present in the codebase but still in active development.
 
-Core logging, session storage, and the math/parsing logic are covered by **23 unit tests across 8 test files** (`AppViewModelTest`, `SessionRepositoryTest`, `WorkoutLogicTest`, `NumericInputEdgeCasesTest`, and others under `app/src/test`). The Tracker screen (radar chart, volume/bodyweight trends) renders correctly but its underlying load-distribution calculations haven't been independently verified yet — treat tracker numbers as provisional.
+**What's tested (23 tests, 8 files under `app/src/test`):**
+- Session persistence — real round-trip save/load/delete against actual temp-directory file I/O (not mocked), including unique-filename collision handling and storage-path migration
+- Numeric input sanitization — adversarial inputs (`"-"`, `"."`, mixed garbage, multi-decimal strings) and drag-to-scrub precision
+- Pre-built workout template parsing — both the happy path and an explicit rejection case (a set declared before any exercise) with an exact expected error message
+- Core volume calculation and session filename generation
+
+**What's implemented but not yet functional:** the Tracker's formula layer (`HerculesMathEngine.kt`) — Epley-based 1RM estimation, a derived effort-adjustment factor, dual AVI/RVI volume indices, and a 30-day rolling axis-weighting system — is fully designed and coded. What it's currently missing is the data it depends on: per-exercise muscle-load distribution (which axis an exercise loads, and by what percentage). Right now this falls back to ~40 hardcoded keyword matches (e.g. `"squat"` → 100% Legs), which is a placeholder, not real data. An ~8,000-entry exercise database (covering variants) with proper load-distribution values is planned to replace this — once that lands, the formula has the real input it was designed for. Treat Tracker output as provisional until then.
+
+Storage uses atomic writes (write-to-temp-file, then rename) with `runCatching`-wrapped fallbacks throughout, so corrupt or missing data files degrade gracefully instead of crashing the app — this is implemented, not just claimed.
 
 ## Tech Stack
 
@@ -55,7 +63,7 @@ Core logging, session storage, and the math/parsing logic are covered by **23 un
 ## Roadmap
 
 - Verifying Balanced, Minimal, and Custom UI modes to the same standard as Rich
-- Validating Tracker load-distribution calculations
+- Building an ~8,000-entry exercise database (with variants) to supply real per-exercise muscle-load distribution data, replacing the current keyword-fallback so the Tracker's AVI/RVI formula has the input it was designed for
 - Richer pre-built text parsing and friendlier import formatting
 - Time-related logging UI
 - Notes support inside sessions
@@ -65,7 +73,4 @@ Full roadmap tracked in [PLANNED_CHANGES.md](PLANNED_CHANGES.md).
 ## Notes
 
 - Data is stored locally on the device; the app is designed for fast on-device iteration and offline use.
-
-## Legacy Notes
-
-Earlier versions of this README used a more marketing-style feature list and installation blurb. The current version keeps the same project intent but reflects the newer theme modpack, pre-built session, and logger work that is now in the codebase.
+- May our muscles grow in size and our strength double
